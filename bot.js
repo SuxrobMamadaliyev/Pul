@@ -1298,16 +1298,6 @@ function renderTasks(tasks){
     return;
   }
 
-  if(!USER_ID){
-    list.innerHTML = \`<div class="no-user">
-      <div class="no-user-icon">🤖</div>
-      <h3>Bot orqali kiring</h3>
-      <p>Vazifalarni bajarish uchun avval Telegram botni ishga tushiring va "📋 Vazifalar" tugmasini bosing.</p>
-      <a class="bot-btn" href="https://t.me/">Botga o'tish</a>
-    </div>\`;
-    return;
-  }
-
   list.innerHTML = tasks.map(t => \`
     <div class="task-card \${t.done ? 'done' : ''}" id="task-\${t.id}">
       <div class="task-icon">\${t.icon || '✅'}</div>
@@ -1318,9 +1308,11 @@ function renderTasks(tasks){
       </div>
       \${t.done
         ? '<button class="task-btn done-btn">✅ Bajarildi</button>'
-        : t.link
-          ? \`<button class="task-btn go" onclick="goTask(\${t.id}, '\${t.link}')">O'tish</button>\`
-          : \`<button class="task-btn claim" onclick="claimTask(\${t.id})">Olish</button>\`
+        : !USER_ID
+          ? '<button class="task-btn done-btn" onclick="noUserAlert()">🔒 Login</button>'
+          : t.link
+            ? \`<button class="task-btn go" onclick="goTask(\${t.id}, '\${t.link}')">O'tish</button>\`
+            : \`<button class="task-btn claim" onclick="claimTask(\${t.id})">Olish</button>\`
       }
     </div>
   \`).join('');
@@ -1382,21 +1374,25 @@ async function claimTask(taskId){
   }
 }
 
+function noUserAlert(){
+  showToast('❌ Botdan kirish kerak!', 'error');
+}
+
 async function init(){
-  const user = await loadUser();
-  if(!user && USER_ID){
-    document.getElementById('userName').textContent = 'Topilmadi';
-    document.getElementById('taskList').innerHTML = \`<div class="no-user">
-      <div class="no-user-icon">⚠️</div>
-      <h3>Foydalanuvchi topilmadi</h3>
-      <p>Avval Telegram botni ishga tushiring!</p>
-    </div>\`;
-    return;
-  }
   tasks = await loadTasks();
   updateProgress(tasks);
   renderTasks(tasks);
+
+  if(USER_ID){
+    const user = await loadUser();
+    if(!user){ document.getElementById('userName').textContent = '⚠️ Botni ishga tushiring'; }
+  } else {
+    document.getElementById('userName').textContent = '👤 Mehmon';
+    document.getElementById('userBal').innerHTML = '— <span>so\'m</span>';
+  }
 }
+
+
 
 init();
 </script>
@@ -1423,6 +1419,7 @@ app.listen(PORT, async () => {
 process.once('SIGINT',  () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 process.once('SIGUSR2', () => bot.stop('SIGUSR2'));
+
 
 
 
