@@ -117,7 +117,7 @@ async function sendSubRequired(ctx, notSub){
 const mainMenu = () => Markup.keyboard([
   ['🎰 Kazino', '👥 Referal ulashish'],
   ['💰 Balans', '💸 Pul yechish'],
-  ['📜 Qoidalar']
+  ['📜 Qoidalar', '📞 Support']
 ]).resize();
 
 const adminMenu = () => Markup.keyboard([
@@ -284,6 +284,25 @@ bot.hears('📜 Qoidalar', async ctx => {
   await ctx.reply(rules || '📜 Qoidalar hali kiritilmagan.', { parse_mode:'HTML' });
 });
 
+// ── 📞 SUPPORT ────────────────────────────────────────────────
+bot.hears('📞 Support', async ctx => {
+  const adminUser = await bot.telegram.getChat(ADMIN_ID).catch(()=>null);
+  const adminLink = adminUser?.username
+    ? `https://t.me/${adminUser.username}`
+    : `tg://user?id=${ADMIN_ID}`;
+  await ctx.reply(
+    `📞 <b>Yordam va qo'llab-quvvatlash</b>\n━━━━━━━━━━━━━━━━━━━━\n\n`
+    +`❓ Savollaringiz yoki muammolaringiz bo'lsa,\nadmin bilan bog'laning.\n\n`
+    +`⏰ Ish vaqti: <b>09:00 — 23:00</b>`,
+    {
+      parse_mode:'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.url('👑 Admin bilan bog\'lanish', adminLink)]
+      ]).reply_markup
+    }
+  );
+});
+
 // ── 👥 REFERAL ────────────────────────────────────────────────
 bot.hears('👥 Referal ulashish', async ctx => {
   await ensureUser(ctx.from.id);
@@ -292,7 +311,7 @@ bot.hears('👥 Referal ulashish', async ctx => {
   const link= `https://t.me/${bi.username}?start=${ctx.from.id}`;
   const rs  = Number(await getSetting('referral_sum'));
 
-  // Isbot kanal (birinchi kanal yoki sozlamadan olinadi)
+  // Isbot kanal (birinchi kanal)
   const chs = await getChannels();
   const isbotCh = chs.length ? chs[0].name : null;
 
@@ -303,10 +322,8 @@ bot.hears('👥 Referal ulashish', async ctx => {
   btns.push([Markup.button.switchToChat('📤 Do\'stlarga ulashish', shareText)]);
   if(isbotCh){
     const slug = isbotCh.startsWith('@') ? isbotCh.slice(1) : isbotCh;
-    btns.push([Markup.button.url('📢 Kanal: ' + isbotCh, 'https://t.me/' + slug)]);
+    btns.push([Markup.button.url('📢 ' + isbotCh, 'https://t.me/' + slug)]);
   }
-  btns.push([Markup.button.url('ℹ️ Botdan foydalanish qoidalari', `https://t.me/${bi.username}?start=rules`)]);
-  btns.push([Markup.button.url('👑 Admin bilan bog\'lanish', `https://t.me/${(await bot.telegram.getChat(ADMIN_ID)).username || ADMIN_ID}`)]);
 
   await ctx.reply(
     `👥 <b>Referal tizimi</b>\n━━━━━━━━━━━━━━━━━━━━\n`
@@ -786,5 +803,6 @@ app.listen(PORT, async () => {
 
 process.once('SIGINT',  ()=>bot.stop('SIGINT'));
 process.once('SIGTERM', ()=>bot.stop('SIGTERM'));
+
 
 
