@@ -1,3 +1,4 @@
-aiogram==2.25.1
-aiohttp==3.8.7
-python-dotenv==1.0.0
+telegraf@^4.14.1
+dotenv@^16.3.1
+sqlite3@^5.1.6
+sqlite@^5.0.1
