@@ -97,22 +97,40 @@ const getUser = id => {
   return users[String(id)] || null;
 };
 
-const ensureUserRecord = (id) => {
+const ensureUserRecord = (id, from=null) => {
   const users = loadUsers();
   const key = String(id);
+  const now = new Date().toISOString();
   if (!users[key]) {
     users[key] = {
       id: Number(id),
-      balance: 0,
-      ref_count: 0,
-      game_count: 0,
-      wins: 0,
-      losses: 0,
-      created_at: new Date().toISOString()
+      username:      from?.username      || '',
+      first_name:    from?.first_name    || '',
+      last_name:     from?.last_name     || '',
+      language_code: from?.language_code || '',
+      is_bot:        from?.is_bot        || false,
+      join_date:     now,
+      balance:       0,
+      ref_count:     0,
+      game_count:    0,
+      wins:          0,
+      losses:        0,
+      last_updated:  now,
+      last_seen:     now,
     };
     saveUsers(users);
     return true;
   }
+  // Mavjud foydalanuvchi — profil va last_seen yangilash
+  let changed = false;
+  if (from) {
+    if (from.username      !== undefined && users[key].username      !== from.username)      { users[key].username      = from.username;      changed = true; }
+    if (from.first_name    !== undefined && users[key].first_name    !== from.first_name)    { users[key].first_name    = from.first_name;    changed = true; }
+    if (from.last_name     !== undefined && users[key].last_name     !== from.last_name)     { users[key].last_name     = from.last_name;     changed = true; }
+    if (from.language_code !== undefined && users[key].language_code !== from.language_code) { users[key].language_code = from.language_code; changed = true; }
+  }
+  users[key].last_seen = now;
+  saveUsers(users);
   return false;
 };
 
@@ -129,11 +147,17 @@ const addBalance = (id, delta) => {
   const key = String(id);
   if (!users[key]) return;
   users[key].balance = (users[key].balance || 0) + delta;
+  users[key].last_updated = new Date().toISOString();
   saveUsers(users);
 };
 
 const setBalance = (id, val) => {
-  updateUser(id, { balance: val });
+  const users = loadUsers();
+  const key = String(id);
+  if (!users[key]) return;
+  users[key].balance = val;
+  users[key].last_updated = new Date().toISOString();
+  saveUsers(users);
 };
 
 const incGame = (id, win) => {
@@ -223,8 +247,8 @@ const logChannel = (action, name) => {
 // ════════════════════════════════════════════════════════════════
 //  ENSURE USER
 // ════════════════════════════════════════════════════════════════
-async function ensureUser(id, refId=null) {
-  const isNew = ensureUserRecord(id);
+async function ensureUser(id, refId=null, from=null) {
+  const isNew = ensureUserRecord(id, from);
   if (isNew) {
     logUser(id, 'REGISTER', refId ? 'ref:'+refId : 'direct', 0, 0);
     if (refId) {
@@ -315,6 +339,7 @@ bot.action('check_sub', async ctx => {
   const { ok, notSub } = await checkUserSub(ctx.telegram, userId);
 
   if (ok) {
+    await ensureUser(userId, null, ctx.from);
     const pending = getPending(userId);
     if (pending) {
       const rs = Number(getSetting('referral_sum'));
@@ -374,7 +399,7 @@ bot.command('start', async ctx => {
       { parse_mode:'HTML', reply_markup: adminMenu().reply_markup });
   }
 
-  const isNew = await ensureUser(userId, arg);
+  const isNew = await ensureUser(userId, arg, ctx.from);
   const { ok, notSub } = await checkUserSub(ctx.telegram, userId);
   if (!ok && !isAdmin(ctx)) return sendSubRequired(ctx, notSub);
 
@@ -415,7 +440,7 @@ bot.command('admin', async ctx => {
 
 // ── 💰 BALANS ──
 bot.hears('💰 Balans', async ctx => {
-  await ensureUser(ctx.from.id);
+  await ensureUser(ctx.from.id, null, ctx.from);
   const u  = getUser(ctx.from.id);
   const rs = Number(getSetting('referral_sum'));
   const mw = Number(getSetting('min_withdraw'));
@@ -460,7 +485,7 @@ bot.hears('📞 Support', async ctx => {
 
 // ── 👥 REFERAL ──
 bot.hears('👥 Referal ulashish', async ctx => {
-  await ensureUser(ctx.from.id);
+  await ensureUser(ctx.from.id, null, ctx.from);
   const u   = getUser(ctx.from.id);
   const bi  = await ctx.telegram.getMe();
   const link= `https://t.me/${bi.username}?start=${ctx.from.id}`;
@@ -498,7 +523,7 @@ const GAME_CONFIG = {
 };
 
 bot.hears('🎰 Kazino', async ctx => {
-  await ensureUser(ctx.from.id);
+  await ensureUser(ctx.from.id, null, ctx.from);
   const u   = getUser(ctx.from.id);
   const bet = Number(getSetting('bet_amount'));
   await ctx.reply(
@@ -527,7 +552,7 @@ async function playGame(ctx, gameKey) {
   if (activePlayers.has(userId))
     return ctx.answerCbQuery("⏳ O'yin hali tugamadi!", { show_alert:true });
   await ctx.answerCbQuery();
-  await ensureUser(userId);
+  await ensureUser(userId, null, ctx.from);
 
   const u   = getUser(userId);
   const bet = Number(getSetting('bet_amount'));
@@ -593,7 +618,7 @@ bot.action('game_bowling',  ctx=>playGame(ctx,'bowling'));
 
 // ── 💸 PUL YECHISH ──
 bot.hears('💸 Pul yechish', async ctx => {
-  await ensureUser(ctx.from.id);
+  await ensureUser(ctx.from.id, null, ctx.from);
   const u  = getUser(ctx.from.id);
   const mw = Number(getSetting('min_withdraw'));
   if (u.balance < mw) {
@@ -1084,6 +1109,7 @@ app.listen(PORT, async () => {
 process.once('SIGINT',  () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 process.once('SIGUSR2', () => bot.stop('SIGUSR2'));
+
 
 
 
