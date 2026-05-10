@@ -8,7 +8,7 @@ require('dotenv').config();
 // ════════════════════════════════════════════════════════════════
 //  BOSHLANG'ICH SOZLAMALAR
 // ════════════════════════════════════════════════════════════════
-const API_TOKEN   = process.env.API_TOKEN   || '';
+const API_TOKEN   = process.env.API_TOKEN   || '8611357164:AAHkJ0YywP7zvKW4nGY84dRsMSMva_pTOfM';
 const ADMIN_ID    = Number(process.env.ADMIN_ID) || 7250754904;
 const WEBHOOK_URL = process.env.WEBHOOK_URL || '';
 const PORT        = Number(process.env.PORT) || 3000;
