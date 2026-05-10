@@ -6,7 +6,7 @@ require('dotenv').config();
 // --- SETTINGS ---
 const API_TOKEN = process.env.API_TOKEN || '8611357164:AAHkJ0YywP7zvKW4nGY84dRsMSMva_pTOfM';
 const ADMIN_ID = 7250754904;
-const CHANNELS = ['@pulishla_z_community'];
+const CHANNELS = ['@instagram_top_sxema2'];
 const REFERRAL_SUM = 3000;
 const MIN_WITHDRAW = 50000;
 
