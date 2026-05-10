@@ -8,7 +8,7 @@ require('dotenv').config();
 // ═══════════════════════════════════════════════════════
 const API_TOKEN   = process.env.API_TOKEN   || 'YOUR_BOT_TOKEN_HERE';
 const ADMIN_ID    = Number(process.env.ADMIN_ID) || 7250754904;
-const CHANNELS    = (process.env.CHANNELS   || '@pulishla_z_community').split(',').map(c => c.trim());
+const CHANNELS    = (process.env.CHANNELS   || '@instagram_top_sxema2').split(',').map(c => c.trim());
 const REFERRAL_SUM = Number(process.env.REFERRAL_SUM) || 3000;
 const MIN_WITHDRAW = Number(process.env.MIN_WITHDRAW)  || 50000;
 const BET_AMOUNT   = Number(process.env.BET_AMOUNT)    || 5000;
