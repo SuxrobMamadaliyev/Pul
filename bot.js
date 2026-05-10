@@ -16,9 +16,15 @@ const PORT        = Number(process.env.PORT) || 3000;
 // ════════════════════════════════════════════════════════════════
 //  MA'LUMOTLAR BAZASI
 // ════════════════════════════════════════════════════════════════
-const db = new sqlite3.Database(path.join(__dirname, 'bot.db'), err => {
+// DB fayl — DATA_DIR env o'rnatilgan bo'lsa u papkada,
+// aks holda __dirname da saqlanadi (VPS uchun yetarli)
+const fs = require('fs');
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+if(!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const DB_PATH = path.join(DATA_DIR, 'bot.db');
+const db = new sqlite3.Database(DB_PATH, err => {
   if (err) console.error('DB xato:', err.message);
-  else     console.log('DB ulandi');
+  else     console.log('DB ulandi:', DB_PATH);
 });
 
 const dbGet = (sql, p=[]) => new Promise((ok,no) => db.get(sql,p,(e,r)=>e?no(e):ok(r)));
@@ -26,6 +32,12 @@ const dbAll = (sql, p=[]) => new Promise((ok,no) => db.all(sql,p,(e,r)=>e?no(e):
 const dbRun = (sql, p=[]) => new Promise((ok,no) => db.run(sql,p,function(e){e?no(e):ok(this);}));
 
 db.serialize(()=>{
+  // WAL mode — server to'xtaganda ma'lumot yo'qolmasligi uchun
+  db.run(`PRAGMA journal_mode=WAL`);
+  db.run(`PRAGMA synchronous=FULL`);  // FULL — eng ishonchli
+  db.run(`PRAGMA cache_size=10000`);
+  db.run(`PRAGMA temp_store=MEMORY`);
+  db.run(`PRAGMA wal_autocheckpoint=100`);
   db.run(`CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT)`);
   db.run(`CREATE TABLE IF NOT EXISTS channels(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE)`);
   db.run(`CREATE TABLE IF NOT EXISTS users(
@@ -51,6 +63,47 @@ db.serialize(()=>{
   db.run(`INSERT OR IGNORE INTO settings VALUES('sub_required','1')`);
   db.run(`INSERT OR IGNORE INTO settings VALUES('rules_text','📜 Bot qoidalari hali kiritilmagan. Admin tomonidan sozlanadi.')`);
   db.run(`INSERT OR IGNORE INTO channels(name) VALUES('@pulishla_z_community')`);
+
+  // ── LOG JADVALLARI ──
+  // Foydalanuvchilar harakatlari (kirish, o'yin, yechish, referal)
+  db.run(`CREATE TABLE IF NOT EXISTS user_logs(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    detail TEXT,
+    balance_before INTEGER DEFAULT 0,
+    balance_after  INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+  )`);
+
+  // Admin harakatlari (sozlama o'zgartirish, balans berish, kanal qo'shish va boshqalar)
+  db.run(`CREATE TABLE IF NOT EXISTS admin_logs(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action TEXT NOT NULL,
+    target_id INTEGER,
+    detail TEXT,
+    old_value TEXT,
+    new_value TEXT,
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+  )`);
+
+  // Kanallar tarixi (qo'shilgan/o'chirilgan)
+  db.run(`CREATE TABLE IF NOT EXISTS channel_logs(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action TEXT NOT NULL,
+    channel_name TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+  )`);
+
+  // Foydalanuvchi profil o'zgarishlari (ismi, usernamei o'zgarsa)
+  db.run(`CREATE TABLE IF NOT EXISTS user_profile_logs(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    first_name TEXT,
+    last_name TEXT,
+    username TEXT,
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+  )`);
 });
 
 const getSetting  = async k => { const r=await dbGet('SELECT value FROM settings WHERE key=?',[k]); return r?r.value:null; };
@@ -63,10 +116,47 @@ const addBalance  = (id,d)  => dbRun('UPDATE users SET balance=balance+? WHERE i
 const setBalance  = (id,v)  => dbRun('UPDATE users SET balance=? WHERE id=?',[v,id]);
 const incGame     = (id,win)=> dbRun('UPDATE users SET game_count=game_count+1,wins=wins+?,losses=losses+? WHERE id=?',[win?1:0,win?0:1,id]);
 
+// ── LOG YOZISH FUNKSIYALARI ──────────────────────────────────
+const logUser = (userId, action, detail='', balBefore=0, balAfter=0) =>
+  dbRun(
+    'INSERT INTO user_logs(user_id,action,detail,balance_before,balance_after) VALUES(?,?,?,?,?)',
+    [userId, action, detail, balBefore, balAfter]
+  ).catch(e => console.error('logUser xato:', e.message));
+
+const logAdmin = (action, targetId=null, detail='', oldVal='', newVal='') =>
+  dbRun(
+    'INSERT INTO admin_logs(action,target_id,detail,old_value,new_value) VALUES(?,?,?,?,?)',
+    [action, targetId, detail, String(oldVal), String(newVal)]
+  ).catch(e => console.error('logAdmin xato:', e.message));
+
+const logChannel = (action, name) =>
+  dbRun(
+    'INSERT INTO channel_logs(action,channel_name) VALUES(?,?)',
+    [action, name]
+  ).catch(e => console.error('logChannel xato:', e.message));
+
+const logProfile = (userId, firstName, lastName, username) =>
+  dbRun(
+    'INSERT INTO user_profile_logs(user_id,first_name,last_name,username) VALUES(?,?,?,?)',
+    [userId, firstName||'', lastName||'', username||'']
+  ).catch(e => console.error('logProfile xato:', e.message));
+
 // Yangi foydalanuvchi qo'shish — referal bonusi HALI berilmaydi
-async function ensureUser(id, refId=null){
-  if(await getUser(id)) return false;
+async function ensureUser(id, refId=null, ctx=null){
+  if(await getUser(id)){
+    // Profil o'zgarishini tekshirish
+    if(ctx?.from){
+      const f = ctx.from;
+      await logProfile(id, f.first_name, f.last_name||'', f.username||'');
+    }
+    return false;
+  }
   await dbRun('INSERT INTO users(id) VALUES(?)',[id]);
+  await logUser(id, 'REGISTER', refId ? 'ref:'+refId : 'direct', 0, 0);
+  if(ctx?.from){
+    const f = ctx.from;
+    await logProfile(id, f.first_name, f.last_name||'', f.username||'');
+  }
   // Agar referal bo'lsa — pending_referrals ga yoz
   if(refId){
     const ref=parseInt(refId,10);
@@ -114,17 +204,21 @@ async function sendSubRequired(ctx, notSub){
 // ════════════════════════════════════════════════════════════════
 //  MENYULAR
 // ════════════════════════════════════════════════════════════════
-const mainMenu = () => Markup.keyboard([
-  ['🎰 Kazino', '👥 Referal ulashish'],
-  ['💰 Balans', '💸 Pul yechish'],
-  ['📜 Qoidalar']
-]).resize();
+const mainMenu = (isAdm=false) => {
+  const rows = [
+    ['🎰 Kazino', '👥 Referal ulashish'],
+    ['💰 Balans', '💸 Pul yechish'],
+    ['📜 Qoidalar', '📞 Support'],
+  ];
+  if(isAdm) rows.push(['👑 Admin paneli']);
+  return Markup.keyboard(rows).resize();
+};
 
 const adminMenu = () => Markup.keyboard([
   ['📊 Statistika', '📢 Xabar yuborish'],
   ['📋 Kanallar',   '⚙️ Sozlamalar'],
   ['👤 Foydalanuvchi', '💳 Balans berish'],
-  ['📝 Qoidalarni tahrirlash'],
+  ['📜 Loglar',     '📝 Qoidalarni tahrirlash'],
   ['🚪 Chiqish']
 ]).resize();
 
@@ -162,8 +256,13 @@ bot.action('check_sub', async ctx => {
     );
     if(pending){
       const rs = Number(await getSetting('referral_sum'));
+      const refUser = await getUser(pending.ref_id);
       await dbRun('UPDATE users SET balance=balance+?,ref_count=ref_count+1 WHERE id=?',[rs, pending.ref_id]);
       await dbRun('DELETE FROM pending_referrals WHERE new_user_id=?',[userId]);
+      await logUser(pending.ref_id, 'REFERRAL_BONUS', 'new_user:'+userId,
+        refUser ? refUser.balance : 0,
+        refUser ? refUser.balance + rs : rs);
+      await logUser(userId, 'SUB_CONFIRMED', 'ref_bonus_given_to:'+pending.ref_id, 0, 0);
       bot.telegram.sendMessage(
         pending.ref_id,
         `🎉 <b>Yangi referal bonus!</b>\n👤 Yangi foydalanuvchi obunadan o'tdi\n💰 +${rs.toLocaleString()} so'm`,
@@ -180,7 +279,7 @@ bot.action('check_sub', async ctx => {
       +`🤑 Har referal uchun <b>${rs.toLocaleString()} so'm</b>!\n`
       +`🎰 Kazinoda omadingizni sinab ko'ring!\n`
       +`💸 <b>${mw.toLocaleString()} so'm</b>dan boshlab yechish\n\nMenyudan tanlang 👇`,
-      { parse_mode: 'HTML', reply_markup: mainMenu().reply_markup }
+      { parse_mode: 'HTML', reply_markup: mainMenu(isAdmin(ctx)).reply_markup }
     );
   } else {
     const btns = notSub.map(ch => {
@@ -245,7 +344,7 @@ bot.command('start', async ctx => {
     +`🤑 Har referal uchun <b>${rs.toLocaleString()} so'm</b>!\n`
     +`🎰 Kazinoda omadingizni sinab ko'ring!\n`
     +`💸 <b>${mw.toLocaleString()} so'm</b>dan boshlab yechish\n\nMenyudan tanlang 👇`,
-    { parse_mode:'HTML', reply_markup: mainMenu().reply_markup }
+    { parse_mode:'HTML', reply_markup: mainMenu(isAdmin(ctx)).reply_markup }
   );
 });
 
@@ -284,6 +383,25 @@ bot.hears('📜 Qoidalar', async ctx => {
   await ctx.reply(rules || '📜 Qoidalar hali kiritilmagan.', { parse_mode:'HTML' });
 });
 
+// ── 📞 SUPPORT ────────────────────────────────────────────────
+bot.hears('📞 Support', async ctx => {
+  const adminUser = await bot.telegram.getChat(ADMIN_ID).catch(()=>null);
+  const adminLink = adminUser?.username
+    ? `https://t.me/${adminUser.username}`
+    : `tg://user?id=${ADMIN_ID}`;
+  await ctx.reply(
+    `📞 <b>Yordam va qo'llab-quvvatlash</b>\n━━━━━━━━━━━━━━━━━━━━\n\n`
+    +`❓ Savollaringiz yoki muammolaringiz bo'lsa,\nadmin bilan bog'laning.\n\n`
+    +`⏰ Ish vaqti: <b>09:00 — 23:00</b>`,
+    {
+      parse_mode:'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.url('👑 Admin bilan bog\'lanish', adminLink)]
+      ]).reply_markup
+    }
+  );
+});
+
 // ── 👥 REFERAL ────────────────────────────────────────────────
 bot.hears('👥 Referal ulashish', async ctx => {
   await ensureUser(ctx.from.id);
@@ -292,7 +410,7 @@ bot.hears('👥 Referal ulashish', async ctx => {
   const link= `https://t.me/${bi.username}?start=${ctx.from.id}`;
   const rs  = Number(await getSetting('referral_sum'));
 
-  // Isbot kanal (birinchi kanal yoki sozlamadan olinadi)
+  // Isbot kanal (birinchi kanal)
   const chs = await getChannels();
   const isbotCh = chs.length ? chs[0].name : null;
 
@@ -303,10 +421,9 @@ bot.hears('👥 Referal ulashish', async ctx => {
   btns.push([Markup.button.switchToChat('📤 Do\'stlarga ulashish', shareText)]);
   if(isbotCh){
     const slug = isbotCh.startsWith('@') ? isbotCh.slice(1) : isbotCh;
-    btns.push([Markup.button.url('📢 Kanal: ' + isbotCh, 'https://t.me/' + slug)]);
+    btns.push([Markup.button.url('📢 ' + isbotCh, 'https://t.me/' + slug)]);
   }
-  btns.push([Markup.button.url('ℹ️ Botdan foydalanish qoidalari', `https://t.me/${bi.username}?start=rules`)]);
-  btns.push([Markup.button.url('👑 Admin bilan bog\'lanish', `https://t.me/${(await bot.telegram.getChat(ADMIN_ID)).username || ADMIN_ID}`)]);
+  // Admin va qoidalar tugmasi olib tashlandi — asosiy menyuda bor
 
   await ctx.reply(
     `👥 <b>Referal tizimi</b>\n━━━━━━━━━━━━━━━━━━━━\n`
@@ -322,6 +439,17 @@ bot.hears('👥 Referal ulashish', async ctx => {
 
 // ── 🎰 KAZINO ─────────────────────────────────────────────────
 const activePlayers = new Set();
+
+// Har bir o'yin turi — faqat emoji va animatsiya vaqti
+// Yutish/yutqazish admin sozlamasidagi win_chance (%) ga qarab aniqlanadi
+const GAME_CONFIG = {
+  slot:     { emoji:'🎰', wait:3500, label:'Slot mashina'  },
+  dice:     { emoji:'🎲', wait:2000, label:'Zar o\'yini'   },
+  basket:   { emoji:'🏀', wait:3000, label:'Basketbol'     },
+  football: { emoji:'⚽', wait:3500, label:'Futbol'         },
+  darts:    { emoji:'🎯', wait:3000, label:'Nishon'         },
+  bowling:  { emoji:'🎳', wait:2500, label:'Bouling'        },
+};
 
 bot.hears('🎰 Kazino', async ctx => {
   await ensureUser(ctx.from.id);
@@ -340,20 +468,24 @@ bot.hears('🎰 Kazino', async ctx => {
         [Markup.button.callback('🏀 Basketbol',    'game_basket')],
         [Markup.button.callback('⚽ Futbol',        'game_football')],
         [Markup.button.callback('🎯 Nishon',        'game_darts')],
+        [Markup.button.callback('🎳 Bouling',       'game_bowling')],
       ]).reply_markup
     }
   );
 });
 
-async function playGame(ctx, emoji){
+async function playGame(ctx, gameKey){
   const userId = ctx.from.id;
+  const cfg    = GAME_CONFIG[gameKey];
+  if(!cfg) return;
+
   if(activePlayers.has(userId))
     return ctx.answerCbQuery("⏳ O'yin hali tugamadi!", { show_alert:true });
   await ctx.answerCbQuery();
   await ensureUser(userId);
+
   const u   = await getUser(userId);
   const bet = Number(await getSetting('bet_amount'));
-  const wc  = Number(await getSetting('win_chance'));
 
   if(u.balance < bet){
     return ctx.reply(
@@ -367,18 +499,37 @@ async function playGame(ctx, emoji){
 
   activePlayers.add(userId);
   try{
-    await ctx.reply(`🎮 <b>O'yin boshlandi!</b> Omad! 🍀`, { parse_mode:'HTML' });
-    await ctx.replyWithDice(emoji);
-    const waits = { '🎰':3500,'🎲':2000,'🏀':3000,'⚽':3000,'🎯':3000 };
-    await new Promise(r=>setTimeout(r, waits[emoji]||2500));
-    const won = Math.random()*100 < wc;
+    await ctx.reply(
+      `🎮 <b>${cfg.label} boshlandi!</b> Omad! 🍀`,
+      { parse_mode:'HTML' }
+    );
+
+    // Har bir o'yin o'z emoji dice animatsiyasini ko'rsatadi
+    await ctx.telegram.sendDice(ctx.chat.id, { emoji: cfg.emoji });
+
+    // Animatsiya tugashini kutish
+    await new Promise(r => setTimeout(r, cfg.wait));
+
+    // Yutish/yutqazish — admin sozlamasidagi win_chance (%) ga qarab
+    const wc  = Number(await getSetting('win_chance'));
+    const won = Math.random() * 100 < wc;
+
     await addBalance(userId, won ? bet : -bet);
     await incGame(userId, won);
     const nu = await getUser(userId);
     activePlayers.delete(userId);
 
-    const gameKey = emoji==='🎰'?'slot':emoji==='🎲'?'dice':emoji==='🏀'?'basket':emoji==='⚽'?'football':'darts';
-    const retryBtn = Markup.inlineKeyboard([[Markup.button.callback("🔄 Yana o'ynash",'game_'+gameKey)]]);
+    const retryBtn = Markup.inlineKeyboard([
+      [Markup.button.callback("🔄 Yana o'ynash", 'game_' + gameKey)]
+    ]);
+
+    // O'yin natijasini loglash
+    await logUser(userId,
+      won ? 'GAME_WIN' : 'GAME_LOSE',
+      `game:${gameKey} bet:${bet}`,
+      u.balance,
+      nu.balance
+    );
 
     if(won){
       await ctx.reply(
@@ -403,11 +554,12 @@ async function playGame(ctx, emoji){
   }
 }
 
-bot.action('game_slot',     ctx=>playGame(ctx,'🎰'));
-bot.action('game_dice',     ctx=>playGame(ctx,'🎲'));
-bot.action('game_basket',   ctx=>playGame(ctx,'🏀'));
-bot.action('game_football', ctx=>playGame(ctx,'⚽'));
-bot.action('game_darts',    ctx=>playGame(ctx,'🎯'));
+bot.action('game_slot',     ctx=>playGame(ctx,'slot'));
+bot.action('game_dice',     ctx=>playGame(ctx,'dice'));
+bot.action('game_basket',   ctx=>playGame(ctx,'basket'));
+bot.action('game_football', ctx=>playGame(ctx,'football'));
+bot.action('game_darts',    ctx=>playGame(ctx,'darts'));
+bot.action('game_bowling',  ctx=>playGame(ctx,'bowling'));
 
 // ── 💸 PUL YECHISH ────────────────────────────────────────────
 bot.hears('💸 Pul yechish', async ctx => {
@@ -426,6 +578,7 @@ bot.hears('💸 Pul yechish', async ctx => {
   const amount = u.balance;
   await dbRun('INSERT INTO withdrawals(user_id,amount) VALUES(?,?)',[ctx.from.id, amount]);
   await setBalance(ctx.from.id, 0);
+  await logUser(ctx.from.id, 'WITHDRAW_REQUEST', `amount:${amount}`, amount, 0);
   await ctx.reply(
     `✅ <b>So'rovingiz qabul qilindi!</b>\n\n💰 Summa: <b>${amount.toLocaleString()} so'm</b>\n⏳ 24 soat ichida ko'rib chiqiladi.`,
     { parse_mode:'HTML' }
@@ -452,6 +605,9 @@ bot.hears('💸 Pul yechish', async ctx => {
 bot.action(/^aw_(\d+)_(\d+)$/, async ctx => {
   if(!isAdmin(ctx)) return ctx.answerCbQuery('❌ Ruxsat yo\'q');
   const [,uid,amt] = ctx.match;
+  await dbRun("UPDATE withdrawals SET status='approved' WHERE user_id=? AND amount=? AND status='pending'",[Number(uid),Number(amt)]);
+  await logAdmin('WITHDRAW_APPROVE', Number(uid), `amount:${amt}`, 'pending', 'approved');
+  await logUser(Number(uid), 'WITHDRAW_APPROVED', `amount:${amt}`, 0, 0);
   bot.telegram.sendMessage(
     Number(uid),
     `✅ <b>${Number(amt).toLocaleString()} so'm tasdiqlandi!</b>\nTez orada o'tkaziladi.`,
@@ -465,7 +621,13 @@ bot.action(/^aw_(\d+)_(\d+)$/, async ctx => {
 bot.action(/^rw_(\d+)_(\d+)$/, async ctx => {
   if(!isAdmin(ctx)) return ctx.answerCbQuery('❌ Ruxsat yo\'q');
   const [,uid,amt] = ctx.match;
+  const refUser = await getUser(Number(uid));
   await addBalance(Number(uid), Number(amt));
+  await dbRun("UPDATE withdrawals SET status='rejected' WHERE user_id=? AND amount=? AND status='pending'",[Number(uid),Number(amt)]);
+  await logAdmin('WITHDRAW_REJECT', Number(uid), `amount:${amt} returned`, 'pending', 'rejected');
+  await logUser(Number(uid), 'WITHDRAW_REJECTED', `amount:${amt} returned`,
+    refUser ? refUser.balance : 0,
+    refUser ? refUser.balance + Number(amt) : Number(amt));
   bot.telegram.sendMessage(
     Number(uid),
     `❌ <b>Pul yechish rad etildi.</b>\nMablag' qaytarildi.`,
@@ -507,6 +669,111 @@ bot.hears('📊 Statistika', async ctx => {
     +`📢 Kanallar: <b>${chs.map(c=>c.name).join(', ')||"Yo'q"}</b>`,
     { parse_mode:'HTML' }
   );
+});
+
+// ── 📜 LOGLAR ─────────────────────────────────────────────────
+bot.hears('📜 Loglar', async ctx => {
+  if(!isAdmin(ctx)) return;
+  await ctx.reply(
+    '📜 <b>Log turlari</b>',
+    {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback('👥 Foydalanuvchi loglari', 'log_user')],
+        [Markup.button.callback('👑 Admin loglari',         'log_admin')],
+        [Markup.button.callback('📢 Kanal loglari',         'log_channel')],
+        [Markup.button.callback('🎰 O\'yin statistikasi',   'log_games')],
+        [Markup.button.callback('💸 Yechish tarixi',        'log_withdraw')],
+      ]).reply_markup
+    }
+  );
+});
+
+bot.action('log_user', async ctx => {
+  if(!isAdmin(ctx)) return ctx.answerCbQuery();
+  await ctx.answerCbQuery();
+  const rows = await dbAll(
+    `SELECT ul.*, u.balance as cur_bal
+     FROM user_logs ul LEFT JOIN users u ON ul.user_id=u.id
+     ORDER BY ul.id DESC LIMIT 15`
+  );
+  if(!rows.length) return ctx.reply('📭 Loglar yo\'q');
+  const text = rows.map(r =>
+    `[${r.created_at}]\n👤 <code>${r.user_id}</code> | <b>${r.action}</b>\n` +
+    (r.detail ? `📝 ${r.detail}\n` : '') +
+    (r.balance_before !== r.balance_after
+      ? `💰 ${r.balance_before.toLocaleString()} → ${r.balance_after.toLocaleString()} so'm\n`
+      : '')
+  ).join('──────────────\n');
+  await ctx.reply('👥 <b>So\'nggi foydalanuvchi harakatlari</b>\n━━━━━━━━━━━━━━━━━━━━\n' + text,
+    { parse_mode:'HTML' });
+});
+
+bot.action('log_admin', async ctx => {
+  if(!isAdmin(ctx)) return ctx.answerCbQuery();
+  await ctx.answerCbQuery();
+  const rows = await dbAll(
+    `SELECT * FROM admin_logs ORDER BY id DESC LIMIT 15`
+  );
+  if(!rows.length) return ctx.reply('📭 Loglar yo\'q');
+  const text = rows.map(r =>
+    `[${r.created_at}]\n⚙️ <b>${r.action}</b>` +
+    (r.target_id ? ` → <code>${r.target_id}</code>` : '') + '\n' +
+    (r.detail ? `📝 ${r.detail}\n` : '') +
+    (r.old_value||r.new_value
+      ? `🔄 <i>${r.old_value}</i> → <b>${r.new_value}</b>\n`
+      : '')
+  ).join('──────────────\n');
+  await ctx.reply('👑 <b>So\'nggi admin harakatlari</b>\n━━━━━━━━━━━━━━━━━━━━\n' + text,
+    { parse_mode:'HTML' });
+});
+
+bot.action('log_channel', async ctx => {
+  if(!isAdmin(ctx)) return ctx.answerCbQuery();
+  await ctx.answerCbQuery();
+  const rows = await dbAll(`SELECT * FROM channel_logs ORDER BY id DESC LIMIT 20`);
+  if(!rows.length) return ctx.reply('📭 Kanal loglari yo\'q');
+  const text = rows.map(r =>
+    `[${r.created_at}] ${r.action==='ADD'?'➕':'🗑'} <b>${r.channel_name}</b>`
+  ).join('\n');
+  await ctx.reply('📢 <b>Kanal tarixi</b>\n━━━━━━━━━━━━━━━━━━━━\n' + text,
+    { parse_mode:'HTML' });
+});
+
+bot.action('log_games', async ctx => {
+  if(!isAdmin(ctx)) return ctx.answerCbQuery();
+  await ctx.answerCbQuery();
+  const total  = await dbGet(`SELECT COUNT(*) c, COALESCE(SUM(CASE WHEN action='GAME_WIN' THEN 1 ELSE 0 END),0) w, COALESCE(SUM(CASE WHEN action='GAME_LOSE' THEN 1 ELSE 0 END),0) l FROM user_logs WHERE action IN ('GAME_WIN','GAME_LOSE')`);
+  const byGame = await dbAll(`SELECT detail, COUNT(*) c, SUM(CASE WHEN action='GAME_WIN' THEN 1 ELSE 0 END) w FROM user_logs WHERE action IN ('GAME_WIN','GAME_LOSE') GROUP BY detail ORDER BY c DESC`);
+  const pct = total.c ? ((total.w/total.c)*100).toFixed(1) : 0;
+  let text = `🎰 <b>O\'yin statistikasi</b>\n━━━━━━━━━━━━━━━━━━━━\n`
+    + `Jami: <b>${total.c}</b> | Yutdi: <b>${total.w}</b> | Yutqazdi: <b>${total.l}</b>\n`
+    + `Yutish %: <b>${pct}%</b>\n━━━━━━━━━━━━━━━━━━━━\n`;
+  byGame.forEach(r => {
+    const g = (r.detail||'').split(' ')[0].replace('game:','');
+    const wp = r.c ? ((r.w/r.c)*100).toFixed(0) : 0;
+    text += `${g}: <b>${r.c}</b> o\'yin | yutish <b>${wp}%</b>\n`;
+  });
+  await ctx.reply(text, { parse_mode:'HTML' });
+});
+
+bot.action('log_withdraw', async ctx => {
+  if(!isAdmin(ctx)) return ctx.answerCbQuery();
+  await ctx.answerCbQuery();
+  const rows = await dbAll(
+    `SELECT w.*, ul.first_name FROM withdrawals w
+     LEFT JOIN user_profile_logs ul ON w.user_id=ul.user_id
+     GROUP BY w.id ORDER BY w.id DESC LIMIT 15`
+  );
+  if(!rows.length) return ctx.reply('📭 Yechish tarixi yo\'q');
+  const statusIcon = { pending:'⏳', approved:'✅', rejected:'❌' };
+  const text = rows.map(r =>
+    `[${r.created_at}]\n` +
+    `${statusIcon[r.status]||'❓'} <code>${r.user_id}</code> | <b>${Number(r.amount).toLocaleString()} so'm</b>\n` +
+    `Holat: <b>${r.status}</b>`
+  ).join('\n──────────────\n');
+  await ctx.reply('💸 <b>Yechish tarixi</b>\n━━━━━━━━━━━━━━━━━━━━\n' + text,
+    { parse_mode:'HTML' });
 });
 
 // State map
@@ -566,6 +833,8 @@ bot.action(/^delch_(.+)$/, async ctx => {
   if(!isAdmin(ctx)) return ctx.answerCbQuery('❌ Ruxsat yo\'q');
   const name = decodeURIComponent(ctx.match[1]);
   await delChannel(name);
+  await logChannel('DELETE', name);
+  await logAdmin('CHANNEL_DELETE', null, name, name, '');
   await ctx.answerCbQuery(`✅ ${name} o'chirildi`);
   await ctx.deleteMessage().catch(()=>{});
   await showChannels(ctx);
@@ -576,6 +845,7 @@ bot.action('toggle_sub', async ctx => {
   const cur  = await getSetting('sub_required');
   const next = cur==='1' ? '0' : '1';
   await setSetting('sub_required', next);
+  await logAdmin('SUB_TOGGLE', null, next==='1'?'yoqildi':'ochirildi', cur, next);
   await ctx.answerCbQuery(next==='1'?'🟢 Yoqildi':'🔴 O\'chirildi');
   await ctx.deleteMessage().catch(()=>{});
   await ctx.reply(
@@ -649,7 +919,7 @@ bot.hears('💳 Balans berish', async ctx => {
 bot.hears('🚪 Chiqish', async ctx => {
   if(!isAdmin(ctx)) return;
   clearState(ADMIN_ID);
-  await ctx.reply('👤 Asosiy menyu.', { reply_markup: mainMenu().reply_markup });
+  await ctx.reply('👤 Asosiy menyu.', { reply_markup: mainMenu(isAdmin(ctx)).reply_markup });
 });
 
 // /cancel
@@ -677,12 +947,16 @@ bot.on('message', async(ctx, next) => {
         catch{ fail++; }
         await new Promise(r=>setTimeout(r,40));
       }
+      await logAdmin('BROADCAST', null, `sent:${sent} fail:${fail}`, '', text.substring(0,100));
       return ctx.reply(`✅ Yuborildi: ${sent}\n❌ Xato: ${fail}`, { reply_markup: adminMenu().reply_markup });
     }
 
     if(st.action === 'set_rules'){
       clearState(ADMIN_ID);
+      const oldRules = await getSetting('rules_text');
       await setSetting('rules_text', text);
+      await logAdmin('RULES_UPDATE', null, 'qoidalar yangilandi',
+        (oldRules||'').substring(0,50), text.substring(0,50));
       return ctx.reply('✅ <b>Qoidalar yangilandi!</b>', { parse_mode:'HTML', reply_markup: adminMenu().reply_markup });
     }
 
@@ -690,6 +964,8 @@ bot.on('message', async(ctx, next) => {
       clearState(ADMIN_ID);
       const ch = text.trim().startsWith('@') ? text.trim() : '@'+text.trim();
       await addChannel(ch);
+      await logChannel('ADD', ch);
+      await logAdmin('CHANNEL_ADD', null, ch, '', ch);
       return ctx.reply(`✅ <b>${ch}</b> qo'shildi!`, { parse_mode:'HTML', reply_markup: adminMenu().reply_markup });
     }
 
@@ -698,7 +974,9 @@ bot.on('message', async(ctx, next) => {
       const val = parseInt(text, 10);
       if(isNaN(val)||val<=0) return ctx.reply('❌ Musbat son kiriting.');
       if(key==='win_chance'&&(val<1||val>99)) return ctx.reply('❌ 1 dan 99 gacha bo\'lishi kerak.');
+      const oldVal = await getSetting(key);
       await setSetting(key, val);
+      await logAdmin('SETTING_CHANGE', null, key, oldVal||'', String(val));
       const labels = { referral_sum:'Referal summasi', min_withdraw:'Minimal yechish', bet_amount:'Stavka', win_chance:'Yutuq ehtimoli' };
       return ctx.reply(
         `✅ <b>${labels[key]}</b>: <b>${val.toLocaleString()}${key==='win_chance'?'%':' so\'m'}</b>`,
@@ -737,7 +1015,14 @@ bot.on('message', async(ctx, next) => {
       const uid = st.userId; clearState(ADMIN_ID);
       const amount = parseInt(text, 10);
       if(isNaN(amount)) return ctx.reply("❌ Noto'g'ri miqdor.");
+      const targetUser = await getUser(uid);
       await addBalance(uid, amount);
+      await logAdmin('BALANCE_GIVE', uid, `amount:${amount}`,
+        targetUser ? String(targetUser.balance) : '0',
+        targetUser ? String(targetUser.balance + amount) : String(amount));
+      await logUser(uid, 'BALANCE_GIVEN', `by_admin amount:${amount}`,
+        targetUser ? targetUser.balance : 0,
+        targetUser ? targetUser.balance + amount : amount);
       bot.telegram.sendMessage(
         uid,
         `💰 <b>Hisobingizga ${amount.toLocaleString()} so'm qo'shildi!</b>`,
@@ -756,9 +1041,23 @@ bot.on('message', async(ctx, next) => {
 bot.on('message', async ctx => {
   await ctx.reply(
     "❓ Noto'g'ri buyruq.\n\nMenyudan foydalaning 👇",
-    { reply_markup: isAdmin(ctx) ? adminMenu().reply_markup : mainMenu().reply_markup }
+    { reply_markup: isAdmin(ctx) ? adminMenu().reply_markup : mainMenu(isAdmin(ctx)).reply_markup }
   );
 });
+
+// ════════════════════════════════════════════════════════════════
+//  AVTOMATIK BACKUP (har 6 soatda)
+// ════════════════════════════════════════════════════════════════
+function backupDB() {
+  const backupPath = path.join(DATA_DIR, 'bot_backup.db');
+  const backup = new (require('sqlite3').verbose().Database)(backupPath);
+  db.backup(backup, err => {
+    if(err) console.error('Backup xato:', err.message);
+    else    console.log('Backup saqlandi:', backupPath);
+    backup.close();
+  });
+}
+setInterval(backupDB, 6 * 60 * 60 * 1000); // har 6 soatda
 
 // ════════════════════════════════════════════════════════════════
 //  SERVER
@@ -784,6 +1083,20 @@ app.listen(PORT, async () => {
   }
 });
 
-process.once('SIGINT',  ()=>bot.stop('SIGINT'));
-process.once('SIGTERM', ()=>bot.stop('SIGTERM'));
+function gracefulShutdown(signal) {
+  console.log('Shutdown:', signal);
+  bot.stop(signal);
+  // WAL ni asosiy faylga yozish va DB ni yopish
+  db.run('PRAGMA wal_checkpoint(TRUNCATE)', () => {
+    db.close(err => {
+      if(err) console.error('DB yopish xato:', err.message);
+      else    console.log('DB xavfsiz yopildi');
+      process.exit(0);
+    });
+  });
+}
+process.once('SIGINT',  () => gracefulShutdown('SIGINT'));
+process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.once('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // nodemon uchun
+
 
