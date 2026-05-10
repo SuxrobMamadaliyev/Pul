@@ -165,7 +165,7 @@ bot.command('start', async ctx => {
     );
   } catch (err) {
     console.error('/start xatosi:', err);
-    ctx.reply('❌ Xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring.').catch(() => {});
+    ctx.reply("❌ Xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring.").catch(() => {});
   }
 });
 
@@ -532,28 +532,41 @@ bot.on('message', async ctx => {
 });
 
 // ═══════════════════════════════════════════════════════
-//  BOTNI ISHGA TUSHURISH
+//  BOTNI ISHGA TUSHURISH  (Render.com — Webhook rejimi)
 // ═══════════════════════════════════════════════════════
-const MODE    = process.env.MODE || 'polling';
+const express = require('express');
+const app     = express();
 const PORT    = Number(process.env.PORT) || 3000;
-const WEBHOOK = process.env.WEBHOOK_URL;
+const WEBHOOK_URL = process.env.WEBHOOK_URL; // masalan: https://myapp.onrender.com
 
-if (MODE === 'webhook' && WEBHOOK) {
-  bot.launch({
-    webhook: {
-      domain: WEBHOOK,
-      port:   PORT,
-      path:   '/telegram',
-    },
-  }).then(() => console.log(`✅ Bot webhook rejimida ishlamoqda (port ${PORT})`))
-    .catch(err => { console.error('Bot ishga tushishda xato:', err); process.exit(1); });
-} else {
-  // Long-polling (local ishlab chiqish uchun)
-  bot.launch()
-    .then(() => console.log('✅ Bot polling rejimida ishlamoqda'))
-    .catch(err => { console.error('Bot ishga tushishda xato:', err); process.exit(1); });
+if (!WEBHOOK_URL) {
+  console.error('❌ WEBHOOK_URL env o\'zgaruvchisi topilmadi!');
+  process.exit(1);
 }
 
+// Telegraf webhook uchun raw body kerak
+app.use(express.json());
+
+// Health-check
+app.get('/', (_req, res) => res.send('OK'));
+
+// Telegram webhook endpoint
+app.post('/telegram', (req, res) => {
+  bot.handleUpdate(req.body, res);
+});
+
+app.listen(PORT, async () => {
+  console.log(`HTTP server port ${PORT} da ishlamoqda`);
+  try {
+    // Webhookni Telegram'ga ro'yxatdan o'tkazish
+    await bot.telegram.setWebhook(`${WEBHOOK_URL}/telegram`);
+    console.log(`✅ Webhook o'rnatildi: ${WEBHOOK_URL}/telegram`);
+  } catch (err) {
+    console.error('❌ Webhook o\'rnatishda xato:', err.message);
+    process.exit(1);
+  }
+});
+
 // Graceful shutdown
-process.once('SIGINT',  () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGINT',  () => { bot.telegram.deleteWebhook(); bot.stop('SIGINT');  });
+process.once('SIGTERM', () => { bot.telegram.deleteWebhook(); bot.stop('SIGTERM'); });
