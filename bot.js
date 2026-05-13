@@ -207,6 +207,11 @@ const T = {
     ru: `🎉 <b>ВЫ ВЫИГРАЛИ!</b> 🎉\n━━━━━━━━━━━━━━━━━━━━\n💰 Выигрыш: <b>+$${bet}</b>\n💵 Баланс: <b>$${bal}</b>`,
     en: `🎉 <b>YOU WIN!</b> 🎉\n━━━━━━━━━━━━━━━━━━━━\n💰 Won: <b>+$${bet}</b>\n💵 Balance: <b>$${bal}</b>`,
   }),
+  casino_streak: (count, lang_key) => ({
+    uz: `🔥 <b>${count} ta ketma-ket yutdi!</b> Bonus: +25%!`,
+    ru: `🔥 <b>${count} побед подряд!</b> Бонус: +25%!`,
+    en: `🔥 <b>${count} wins in a row!</b> Bonus: +25%!`,
+  }),
   casino_lose: (bet, bal) => ({
     uz: `😔 <b>Yutqazdingiz...</b>\n━━━━━━━━━━━━━━━━━━━━\n💸 -<b>$${bet}</b>\n💵 Balans: <b>$${bal}</b>\n🍀 Yana urinib ko'ring!`,
     ru: `😔 <b>Вы проиграли...</b>\n━━━━━━━━━━━━━━━━━━━━\n💸 -<b>$${bet}</b>\n💵 Баланс: <b>$${bal}</b>\n🍀 Попробуйте ещё раз!`,
@@ -261,7 +266,7 @@ const T = {
   // ── Tasks site ──
   task_done_msg: (title, reward, bal) => ({
     uz: `✅ <b>Vazifa bajarildi!</b>\n\n📋 ${title}\n💰 +$${reward} qo'shildi!\n💵 Balans: <b>$${bal}</b>`,
-    ru: `✅ <b>Задание выполнено!</b>\n\n📋 ${title}\n💰 +$${reward} зачислено!\n💵 Баланс: <b>$${bal}</b>`,
+    ru: `✅ <b>Задание в��полнено!</b>\n\n📋 ${title}\n💰 +$${reward} зачислено!\n💵 Баланс: <b>$${bal}</b>`,
     en: `✅ <b>Task completed!</b>\n\n📋 ${title}\n💰 +$${reward} added!\n💵 Balance: <b>$${bal}</b>`,
   }),
   // ── Unknown command ──
@@ -370,7 +375,7 @@ async function getUser(id) {
   return data || null;
 }
 
-async function ensureUserRecord(id, from = null) {
+async function ensureUser(id, refId = null, from = null) {
   const existing = await getUser(id);
   const now = new Date().toISOString();
   if (!existing) {
@@ -609,6 +614,8 @@ async function sendLangMenu(ctx) {
 async function checkSubMiddleware(ctx, next) {
   if (!ctx.from) return next();
   if (isAdmin(ctx)) return next();
+  if (ctx.callbackQuery?.data?.startsWith('setlang_')) return next();
+  if (ctx.callbackQuery?.data === 'check_sub') return next();
   if (ctx.callbackQuery) return next();
   if (ctx.message?.text?.startsWith('/start')) return next();
   const { ok, notSub } = await checkUserSub(ctx.telegram, ctx.from.id);
@@ -719,19 +726,23 @@ async function handleBalance(ctx) {
   await ensureUser(ctx.from.id, null, ctx.from);
   const lang = await getUserLang(ctx.from.id);
   const u = await getUser(ctx.from.id);
+  if (!u) {
+    await ctx.reply('❌ Xatolik: Profil yuklanmadi', { parse_mode: 'HTML' });
+    return;
+  }
   const rs = fmt(Number(await getSetting('referral_sum')));
   const mw = fmt(Number(await getSetting('min_withdraw')));
   await ctx.reply(
-    `${t('balance_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n`
-    + `${t('bal_balance', lang)}        <b>$${fmt(u.balance)}</b>\n`
-    + `${t('bal_refs', lang)}    <b>${u.ref_count}</b>\n`
-    + `${t('bal_games', lang)}      <b>${u.game_count}</b>\n`
-    + `${t('bal_wins', lang)}        <b>${u.wins}</b>\n`
-    + `${t('bal_losses', lang)}     <b>${u.losses}</b>\n`
-    + `━━━━━━━━━━━━━━━━━━━━\n`
-    + `${t('bal_minw', lang)} <b>$${mw}</b>\n`
-    + `${t('bal_per_ref', lang)} <b>$${rs}</b>`,
-    { parse_mode: 'HTML' }
+  `${t('balance_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n`
+  + `${t('bal_balance', lang)}        <b>$${fmt(u.balance)}</b>\n`
+  + `${t('bal_refs', lang)}    <b>${u.ref_count}</b>\n`
+  + `${t('bal_games', lang)}      <b>${u.game_count}</b>\n`
+  + `${t('bal_wins', lang)}        <b>${u.wins}</b>\n`
+  + `${t('bal_losses', lang)}     <b>${u.losses}</b>\n`
+  + `━━━━━━━━━━━━━━━━━━━━\n`
+  + `${t('bal_minw', lang)} <b>$${mw}</b>\n`
+  + `${t('bal_per_ref', lang)} <b>$${rs}</b>`,
+  { parse_mode: 'HTML' }
   );
 }
 bot.hears([T.menu.balance.uz, T.menu.balance.ru, T.menu.balance.en], handleBalance);
@@ -761,13 +772,17 @@ async function handleReferral(ctx) {
   await ensureUser(ctx.from.id, null, ctx.from);
   const lang = await getUserLang(ctx.from.id);
   const u = await getUser(ctx.from.id);
+  if (!u) {
+    await ctx.reply('❌ Xatolik: Profil yuklanmadi', { parse_mode: 'HTML' });
+    return;
+  }
   const bi = await ctx.telegram.getMe();
   const link = `https://t.me/${bi.username}?start=${ctx.from.id}`;
   const rs = fmt(Number(await getSetting('referral_sum')));
   const chs = await getChannels();
   const isbotCh = chs.length ? chs[0].name : null;
   const shareTexts = {
-    uz: `🎰 Bot orqali pul ishlang! Har referal uchun $${rs}!\n${link}`,
+  uz: `🎰 Bot orqali pul ishlang! Har referal uchun $${rs}!\n${link}`,
     ru: `🎰 Зарабатывайте через бота! $${rs} за каждого реферала!\n${link}`,
     en: `🎰 Earn money via bot! $${rs} per referral!\n${link}`,
   };
@@ -805,17 +820,36 @@ async function handleTasks(ctx) {
 bot.hears([T.menu.tasks.uz, T.menu.tasks.ru, T.menu.tasks.en], handleTasks);
 
 // ════════════════════════════════════════════════════════════════
-//  🎰 KAZINO
+//  🎰 KAZINO (ENHANCED)
 // ════════════════════════════════════════════════════════════════
 const activePlayers = new Set();
+const playerStreaks = new Map(); // Track win/loss streaks
 const GAME_CONFIG = {
-  slot:     { emoji: '🎰', wait: 3500 },
-  dice:     { emoji: '🎲', wait: 2000 },
-  basket:   { emoji: '🏀', wait: 3000 },
-  football: { emoji: '⚽', wait: 3500 },
-  darts:    { emoji: '🎯', wait: 3000 },
-  bowling:  { emoji: '🎳', wait: 2500 },
+  slot:     { emoji: '🎰', wait: 3500, baseWinChance: 45 },
+  dice:     { emoji: '🎲', wait: 2000, baseWinChance: 50 },
+  basket:   { emoji: '🏀', wait: 3000, baseWinChance: 48 },
+  football: { emoji: '⚽', wait: 3500, baseWinChance: 45 },
+  darts:    { emoji: '🎯', wait: 3000, baseWinChance: 50 },
+  bowling:  { emoji: '🎳', wait: 2500, baseWinChance: 48 },
 };
+
+// Calculate dynamic win chance based on streak and multiplier
+function calculateWinChance(userId, gameKey, baseChance) {
+  const streak = playerStreaks.get(userId) || { wins: 0, losses: 0 };
+  // After 2 losses, next game has slightly better odds (balance system)
+  if (streak.losses >= 2) return Math.min(baseChance + 5, 65);
+  // Prevent long win streaks by slightly reducing odds
+  if (streak.wins >= 3) return Math.max(baseChance - 3, 35);
+  return baseChance;
+}
+
+// Calculate multiplier based on streak
+function calculateMultiplier(userId) {
+  const streak = playerStreaks.get(userId) || { wins: 0, losses: 0 };
+  if (streak.wins >= 3) return 1.25; // 25% bonus for 3+ wins
+  if (streak.wins >= 1) return 1.1;  // 10% bonus for 1+ wins
+  return 1.0;
+}
 
 async function handleCasino(ctx) {
   await ensureUser(ctx.from.id, null, ctx.from);
@@ -851,34 +885,70 @@ async function playGame(ctx, gameKey) {
   await ctx.answerCbQuery();
   await ensureUser(userId, null, ctx.from);
   const u = await getUser(userId);
+  if (!u) {
+    await ctx.reply('❌ Xatolik: Profil yuklanmadi', { parse_mode: 'HTML' });
+    return;
+  }
   const betRaw = Number(await getSetting('bet_amount'));
   const bet = fmt(betRaw);
   if (u.balance < betRaw) {
-    return ctx.reply(
-      t('casino_no_funds', lang, bet, fmt(u.balance))[lang] || t('casino_no_funds', lang, bet, fmt(u.balance)).uz,
-      { parse_mode: 'HTML' }
-    );
+    const msgObj = t('casino_no_funds', lang, bet, fmt(u.balance));
+    const msg = typeof msgObj === 'object' ? (msgObj[lang] || msgObj.uz) : msgObj;
+    return ctx.reply(msg, { parse_mode: 'HTML' });
   }
   activePlayers.add(userId);
   try {
     const gameLabel = T.casino_games[gameKey][lang];
-    await ctx.reply(t('casino_started', lang)(gameLabel)[lang] || t('casino_started', lang)(gameLabel).uz, { parse_mode: 'HTML' });
+    const msgObj = t('casino_started', lang)(gameLabel);
+    const msg = typeof msgObj === 'object' ? (msgObj[lang] || msgObj.uz) : msgObj;
+    await ctx.reply(msg, { parse_mode: 'HTML' });
     await ctx.telegram.sendDice(ctx.chat.id, { emoji: cfg.emoji });
     await new Promise(r => setTimeout(r, cfg.wait));
-    const wc = Number(await getSetting('win_chance'));
-    const won = Math.random() * 100 < wc;
-    await addBalance(userId, won ? betRaw : -betRaw);
+    
+    // Enhanced game logic with dynamic odds and multipliers
+    const basWinChance = cfg.baseWinChance || 45;
+    const dynamicWinChance = calculateWinChance(userId, gameKey, basWinChance);
+    const won = Math.random() * 100 < dynamicWinChance;
+    
+    // Calculate winnings with streak multiplier
+    const multiplier = calculateMultiplier(userId);
+    const payout = won ? Math.round(betRaw * multiplier * 100) / 100 : -betRaw;
+    
+    await addBalance(userId, payout);
     await incGame(userId, won);
     const nu = await getUser(userId);
+    
+    // Update streak tracking
+    const currentStreak = playerStreaks.get(userId) || { wins: 0, losses: 0 };
+    if (won) {
+      currentStreak.wins++;
+      currentStreak.losses = 0;
+    } else {
+      currentStreak.losses++;
+      currentStreak.wins = 0;
+    }
+    playerStreaks.set(userId, currentStreak);
+    
     activePlayers.delete(userId);
-    await logUser(userId, won ? 'GAME_WIN' : 'GAME_LOSE', `game:${gameKey} bet:${betRaw}`, u.balance, nu.balance);
+    await logUser(userId, won ? 'GAME_WIN' : 'GAME_LOSE', `game:${gameKey} bet:${betRaw} mult:${multiplier.toFixed(2)}`, u.balance, nu.balance);
+    
     const retryLabel = t('casino_retry', lang);
     const retryBtn = Markup.inlineKeyboard([[Markup.button.callback(retryLabel, 'game_' + gameKey)]]);
-    const msgObj = won
-      ? t('casino_win', lang, bet, fmt(nu.balance))
-      : t('casino_lose', lang, bet, fmt(nu.balance));
-    const msg = typeof msgObj === 'object' ? (msgObj[lang] || msgObj.uz) : msgObj;
-    await ctx.reply(msg, { parse_mode: 'HTML', reply_markup: retryBtn.reply_markup });
+    
+    // Enhanced win/loss message with streak info
+    let resultMsg;
+    if (won) {
+      const streakBonus = multiplier > 1 ? `\n🔥 ${Math.round((multiplier - 1) * 100)}% streak bonus!` : '';
+      resultMsg = t('casino_win', lang, fmt(payout), fmt(nu.balance));
+      if (currentStreak.wins > 1) {
+        resultMsg += (typeof resultMsg === 'string' ? resultMsg : resultMsg[lang] || resultMsg.uz) + streakBonus;
+      }
+    } else {
+      resultMsg = t('casino_lose', lang, bet, fmt(nu.balance));
+    }
+    
+    const finalMsg = typeof resultMsg === 'object' ? (resultMsg[lang] || resultMsg.uz) : resultMsg;
+    await ctx.reply(finalMsg, { parse_mode: 'HTML', reply_markup: retryBtn.reply_markup });
   } catch (err) {
     activePlayers.delete(userId);
     console.error('Kazino xato:', err);
@@ -898,15 +968,17 @@ async function handleWithdraw(ctx) {
   await ensureUser(ctx.from.id, null, ctx.from);
   const lang = await getUserLang(ctx.from.id);
   const u = await getUser(ctx.from.id);
+  if (!u) {
+    await ctx.reply('❌ Xatolik: Profil yuklanmadi', { parse_mode: 'HTML' });
+    return;
+  }
   const mwRaw = Number(await getSetting('min_withdraw'));
   const mw = fmt(mwRaw);
   if (u.balance < mwRaw) {
     const need = fmt(mwRaw - u.balance);
     const msgObj = t('withdraw_no_funds', lang, fmt(u.balance), mw, need);
-    return ctx.reply(
-      typeof msgObj === 'object' ? (msgObj[lang] || msgObj.uz) : msgObj,
-      { parse_mode: 'HTML' }
-    );
+    const msg = typeof msgObj === 'object' ? (msgObj[lang] || msgObj.uz) : msgObj;
+    return ctx.reply(msg, { parse_mode: 'HTML' });
   }
   const amount = u.balance;
   await addWithdrawal(ctx.from.id, amount);
@@ -938,9 +1010,10 @@ bot.action(/^aw_(\d+)_([0-9.]+)$/, async ctx => {
   await logAdmin('WITHDRAW_APPROVE', Number(uid), `amount:${amt}`, 'pending', 'approved');
   await logUser(Number(uid), 'WITHDRAW_APPROVED', `amount:${amt}`, 0, 0);
   const userLang = await getUserLang(Number(uid));
-  const msgObj = t('withdraw_approved', userLang, fmt(Number(amt)));
+  const approveObj = t('withdraw_approved', userLang, fmt(Number(amt)));
+  const approveMsg = typeof approveObj === 'object' ? (approveObj[userLang] || approveObj.uz) : approveObj;
   bot.telegram.sendMessage(Number(uid),
-    typeof msgObj === 'object' ? (msgObj[userLang] || msgObj.uz) : msgObj,
+    approveMsg,
     { parse_mode: 'HTML' }
   ).catch(() => {});
   await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
@@ -1621,6 +1694,7 @@ app.listen(PORT, async () => {
 process.once('SIGINT',  () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 process.once('SIGUSR2', () => bot.stop('SIGUSR2'));
+
 
 
 
