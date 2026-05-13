@@ -3,6 +3,45 @@ const { Telegraf, Markup } = require('telegraf');
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
+async function ensureUserRecord(userId, from) {
+  try {
+    // Bazadan foydalanuvchini tekshiramiz
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('user_id')
+      .eq('user_id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 - ma'lumot topilmadi degani
+      console.error('Bazaga murojaatda xato:', error);
+      return false;
+    }
+
+    // Agar foydalanuvchi yo'q bo'lsa, yangi yaratamiz
+    if (!user) {
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert([{ 
+          user_id: userId, 
+          username: from.username || null, 
+          first_name: from.first_name || '',
+          balance: 1000, // Boshlang'ich bonus
+          lang: 'uz'
+        }]);
+
+      if (insertError) {
+        console.error('Foydalanuvchini saqlashda xato:', insertError);
+        return false;
+      }
+      return true; // Yangi foydalanuvchi yaratildi
+    }
+
+    return false; // Foydalanuvchi allaqachon bor edi
+  } catch (err) {
+    console.error('ensureUserRecord ichida kutilmagan xato:', err);
+    return false;
+  }
+}
 
 // ════════════════════════════════════════════════════════════════
 //  BOSHLANG'ICH SOZLAMALAR
