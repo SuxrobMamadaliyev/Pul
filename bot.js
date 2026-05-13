@@ -21,6 +21,272 @@ const supabase = createClient(
 );
 
 // ════════════════════════════════════════════════════════════════
+//  I18N — 3 ta til: uz / ru / en
+//  Valyuta: USD ($)
+// ════════════════════════════════════════════════════════════════
+const LANGS = ['uz', 'ru', 'en'];
+
+const T = {
+  // ── Til tanlash ──
+  choose_lang: {
+    uz: '🌐 Tilni tanlang:',
+    ru: '🌐 Выберите язык:',
+    en: '🌐 Choose language:',
+  },
+  lang_set: {
+    uz: '✅ Til: O\'zbek',
+    ru: '✅ Язык: Русский',
+    en: '✅ Language: English',
+  },
+  // ── Umumiy ──
+  currency: { uz: '$', ru: '$', en: '$' },
+  // ── Welcome ──
+  welcome: {
+    uz: (name, rs, mw) =>
+      `👋 <b>Assalomu alaykum, ${name}!</b>\n\n`
+      + `🤑 Har referal uchun <b>$${rs}</b>!\n`
+      + `🎰 Kazinoda omadingizni sinab ko'ring!\n`
+      + `📋 Vazifalar bajaring va bonus oling!\n`
+      + `💸 <b>$${mw}</b>dan boshlab yechish\n\nMenyudan tanlang 👇`,
+    ru: (name, rs, mw) =>
+      `👋 <b>Добро пожаловать, ${name}!</b>\n\n`
+      + `🤑 За каждого реферала <b>$${rs}</b>!\n`
+      + `🎰 Испытайте удачу в казино!\n`
+      + `📋 Выполняйте задания и получайте бонусы!\n`
+      + `💸 Вывод от <b>$${mw}</b>\n\nВыберите из меню 👇`,
+    en: (name, rs, mw) =>
+      `👋 <b>Welcome, ${name}!</b>\n\n`
+      + `🤑 <b>$${rs}</b> for every referral!\n`
+      + `🎰 Try your luck in the casino!\n`
+      + `📋 Complete tasks and earn bonuses!\n`
+      + `💸 Withdraw from <b>$${mw}</b>\n\nChoose from menu 👇`,
+  },
+  // ── Sub required ──
+  sub_required_title: {
+    uz: "🔒 <b>Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:</b>\n\n",
+    ru: '🔒 <b>Для использования бота подпишитесь на каналы:</b>\n\n',
+    en: '🔒 <b>Subscribe to the following channels to use the bot:</b>\n\n',
+  },
+  sub_join_btn: {
+    uz: ch => `📢 ${ch} ga a'zo bo'lish`,
+    ru: ch => `📢 Подписаться на ${ch}`,
+    en: ch => `📢 Join ${ch}`,
+  },
+  sub_check_btn: {
+    uz: "✅ A'zo bo'ldim — Tekshirish",
+    ru: '✅ Подписался — Проверить',
+    en: '✅ Subscribed — Check',
+  },
+  sub_not_yet: {
+    uz: "❌ Hali ham a'zo emassiz!",
+    ru: '❌ Вы ещё не подписались!',
+    en: '❌ You are still not subscribed!',
+  },
+  sub_ok: {
+    uz: (name, rs, mw) =>
+      `✅ <b>Obunadan o'tdingiz!</b>\n\n👋 Xush kelibsiz, <b>${name}</b>!\n\n`
+      + `🤑 Har referal uchun <b>$${rs}</b>!\n`
+      + `🎰 Kazinoda omadingizni sinab ko'ring!\n`
+      + `💸 <b>$${mw}</b>dan boshlab yechish\n\nMenyudan tanlang 👇`,
+    ru: (name, rs, mw) =>
+      `✅ <b>Подписка подтверждена!</b>\n\n👋 Добро пожаловать, <b>${name}</b>!\n\n`
+      + `🤑 За каждого реферала <b>$${rs}</b>!\n`
+      + `💸 Вывод от <b>$${mw}</b>\n\nВыберите из меню 👇`,
+    en: (name, rs, mw) =>
+      `✅ <b>Subscription confirmed!</b>\n\n👋 Welcome, <b>${name}</b>!\n\n`
+      + `🤑 <b>$${rs}</b> per referral!\n`
+      + `💸 Withdraw from <b>$${mw}</b>\n\nChoose from menu 👇`,
+  },
+  // ── Menyu tugmalari ──
+  menu: {
+    casino:    { uz: '🎰 Kazino',         ru: '🎰 Казино',        en: '🎰 Casino' },
+    referral:  { uz: '👥 Referal',         ru: '👥 Реферал',       en: '👥 Referral' },
+    balance:   { uz: '💰 Balans',          ru: '💰 Баланс',        en: '💰 Balance' },
+    withdraw:  { uz: '💸 Pul yechish',     ru: '💸 Вывод средств', en: '💸 Withdraw' },
+    tasks:     { uz: '📋 Vazifalar',       ru: '📋 Задания',       en: '📋 Tasks' },
+    rules:     { uz: '📜 Qoidalar',        ru: '📜 Правила',       en: '📜 Rules' },
+    support:   { uz: '📞 Support',         ru: '📞 Поддержка',     en: '📞 Support' },
+    admin:     { uz: '👑 Admin paneli',    ru: '👑 Панель админа', en: '👑 Admin Panel' },
+    lang:      { uz: '🌐 Til',             ru: '🌐 Язык',          en: '🌐 Language' },
+  },
+  // ── Balans ──
+  balance_title: {
+    uz: '💰 <b>Hisobingiz</b>',
+    ru: '💰 <b>Ваш баланс</b>',
+    en: '💰 <b>Your Balance</b>',
+  },
+  bal_balance:   { uz: '💵 Balans:',     ru: '💵 Баланс:',    en: '💵 Balance:' },
+  bal_refs:      { uz: '👥 Referallar:', ru: '👥 Рефералы:',  en: '👥 Referrals:' },
+  bal_games:     { uz: "🎰 O'yinlar:",   ru: '🎰 Игры:',       en: '🎰 Games:' },
+  bal_wins:      { uz: '✅ Yutgan:',     ru: '✅ Выигрыши:',  en: '✅ Wins:' },
+  bal_losses:    { uz: '❌ Yutqazgan:',  ru: '❌ Проигрыши:', en: '❌ Losses:' },
+  bal_minw:      { uz: '📌 Minimal yechish:', ru: '📌 Мин. вывод:', en: '📌 Min withdraw:' },
+  bal_per_ref:   { uz: '💎 Har referal:', ru: '💎 За реферал:', en: '💎 Per referral:' },
+  // ── Rules ──
+  rules_empty: {
+    uz: '📜 Qoidalar hali kiritilmagan.',
+    ru: '📜 Правила ещё не заданы.',
+    en: '📜 Rules have not been set yet.',
+  },
+  // ── Support ──
+  support_title: {
+    uz: '📞 <b>Yordam va qo\'llab-quvvatlash</b>',
+    ru: '📞 <b>Помощь и поддержка</b>',
+    en: '📞 <b>Help & Support</b>',
+  },
+  support_body: {
+    uz: '❓ Savollaringiz yoki muammolaringiz bo\'lsa,\nadmin bilan bog\'laning.\n\n⏰ Ish vaqti: <b>09:00 — 23:00</b>',
+    ru: '❓ Если у вас есть вопросы или проблемы,\nсвяжитесь с администратором.\n\n⏰ Режим работы: <b>09:00 — 23:00</b>',
+    en: '❓ If you have any questions or issues,\nplease contact the admin.\n\n⏰ Working hours: <b>09:00 — 23:00</b>',
+  },
+  support_btn: {
+    uz: "👑 Admin bilan bog'lanish",
+    ru: '👑 Связаться с администратором',
+    en: '👑 Contact Admin',
+  },
+  // ── Referral ──
+  ref_title: {
+    uz: '👥 <b>Referal tizimi</b>',
+    ru: '👥 <b>Реферальная система</b>',
+    en: '👥 <b>Referral System</b>',
+  },
+  ref_per_friend: { uz: 'Har do\'st uchun:', ru: 'За каждого друга:', en: 'Per friend:' },
+  ref_link:       { uz: '🔗 <b>Sizning havolangiz:</b>', ru: '🔗 <b>Ваша ссылка:</b>', en: '🔗 <b>Your link:</b>' },
+  ref_invited:    { uz: 'Jalb qilganlar:', ru: 'Приглашено:', en: 'Invited:' },
+  ref_balance:    { uz: 'Balans:', ru: 'Баланс:', en: 'Balance:' },
+  ref_share_hint: { uz: "📤 Havolani do'stlaringizga ulashing!", ru: '📤 Поделитесь ссылкой с друзьями!', en: '📤 Share your link with friends!' },
+  ref_share_btn:  { uz: "📤 Do'stlarga ulashish", ru: '📤 Поделиться с друзьями', en: '📤 Share with friends' },
+  ref_bonus_msg: {
+    uz: (name, rs) => `🎉 <b>Yangi referal bonus!</b>\n👤 ${name} qo'shildi\n💰 +$${rs}`,
+    ru: (name, rs) => `🎉 <b>Реферальный бонус!</b>\n👤 ${name} присоединился\n💰 +$${rs}`,
+    en: (name, rs) => `🎉 <b>New referral bonus!</b>\n👤 ${name} joined\n💰 +$${rs}`,
+  },
+  ref_bonus_sub_msg: {
+    uz: (uid, rs) => `🎉 <b>Yangi referal bonus!</b>\n👤 Yangi foydalanuvchi obunadan o'tdi\n💰 +$${rs}`,
+    ru: (uid, rs) => `🎉 <b>Реферальный бонус!</b>\n👤 Новый пользователь подтвердил подписку\n💰 +$${rs}`,
+    en: (uid, rs) => `🎉 <b>New referral bonus!</b>\n👤 New user completed subscription\n💰 +$${rs}`,
+  },
+  // ── Tasks ──
+  tasks_title: {
+    uz: '📋 <b>Vazifalar</b>',
+    ru: '📋 <b>Задания</b>',
+    en: '📋 <b>Tasks</b>',
+  },
+  tasks_body: {
+    uz: '✅ Vazifalarni bajaring va bonus oling!\n\n🔗 Saytga o\'ting va vazifalarni bajaring:',
+    ru: '✅ Выполняйте задания и получайте бонусы!\n\n🔗 Перейдите на сайт и выполните задания:',
+    en: '✅ Complete tasks and earn bonuses!\n\n🔗 Go to the website and complete tasks:',
+  },
+  tasks_btn: {
+    uz: '📋 Vazifalarni bajarish',
+    ru: '📋 Выполнить задания',
+    en: '📋 Complete Tasks',
+  },
+  // ── Casino ──
+  casino_title: { uz: '🎰 <b>Kazino</b>', ru: '🎰 <b>Казино</b>', en: '🎰 <b>Casino</b>' },
+  casino_balance: { uz: '💵 Balans:', ru: '💵 Баланс:', en: '💵 Balance:' },
+  casino_bet:     { uz: '🎲 Stavka:', ru: '🎲 Ставка:', en: '🎲 Bet:' },
+  casino_choose:  { uz: "O'yin turini tanlang:", ru: 'Выберите игру:', en: 'Choose game type:' },
+  casino_started: g => ({
+    uz: `🎮 <b>${g} boshlandi!</b> Omad! 🍀`,
+    ru: `🎮 <b>${g} начата!</b> Удачи! 🍀`,
+    en: `🎮 <b>${g} started!</b> Good luck! 🍀`,
+  }),
+  casino_busy: {
+    uz: "⏳ O'yin hali tugamadi!",
+    ru: '⏳ Игра ещё не завершена!',
+    en: '⏳ Game not finished yet!',
+  },
+  casino_no_funds: (bet, bal) => ({
+    uz: `❌ <b>Mablag' yetarli emas!</b>\n\n🎲 Stavka: <b>$${bet}</b>\n💵 Sizda: <b>$${bal}</b>\n\n👥 Referal orqali to'ldiring!`,
+    ru: `❌ <b>Недостаточно средств!</b>\n\n🎲 Ставка: <b>$${bet}</b>\n💵 У вас: <b>$${bal}</b>\n\n👥 Пополните через реферальную систему!`,
+    en: `❌ <b>Insufficient funds!</b>\n\n🎲 Bet: <b>$${bet}</b>\n💵 You have: <b>$${bal}</b>\n\n👥 Earn via referrals!`,
+  }),
+  casino_win: (bet, bal) => ({
+    uz: `🎉 <b>YUTDINGIZ!</b> 🎉\n━━━━━━━━━━━━━━━━━━━━\n💰 Yutuq: <b>+$${bet}</b>\n💵 Balans: <b>$${bal}</b>`,
+    ru: `🎉 <b>ВЫ ВЫИГРАЛИ!</b> 🎉\n━━━━━━━━━━━━━━━━━━━━\n💰 Выигрыш: <b>+$${bet}</b>\n💵 Баланс: <b>$${bal}</b>`,
+    en: `🎉 <b>YOU WIN!</b> 🎉\n━━━━━━━━━━━━━━━━━━━━\n💰 Won: <b>+$${bet}</b>\n💵 Balance: <b>$${bal}</b>`,
+  }),
+  casino_lose: (bet, bal) => ({
+    uz: `😔 <b>Yutqazdingiz...</b>\n━━━━━━━━━━━━━━━━━━━━\n💸 -<b>$${bet}</b>\n💵 Balans: <b>$${bal}</b>\n🍀 Yana urinib ko'ring!`,
+    ru: `😔 <b>Вы проиграли...</b>\n━━━━━━━━━━━━━━━━━━━━\n💸 -<b>$${bet}</b>\n💵 Баланс: <b>$${bal}</b>\n🍀 Попробуйте ещё раз!`,
+    en: `😔 <b>You lost...</b>\n━━━━━━━━━━━━━━━━━━━━\n💸 -<b>$${bet}</b>\n💵 Balance: <b>$${bal}</b>\n🍀 Try again!`,
+  }),
+  casino_retry: {
+    uz: "🔄 Yana o'ynash",
+    ru: '🔄 Играть снова',
+    en: '🔄 Play again',
+  },
+  casino_games: {
+    slot:     { uz: '🎰 Slot mashina',  ru: '🎰 Слот-машина',  en: '🎰 Slot Machine' },
+    dice:     { uz: "🎲 Zar o'yini",    ru: "🎲 Игра в кости", en: '🎲 Dice Game' },
+    basket:   { uz: '🏀 Basketbol',     ru: '🏀 Баскетбол',    en: '🏀 Basketball' },
+    football: { uz: '⚽ Futbol',         ru: '⚽ Футбол',        en: '⚽ Football' },
+    darts:    { uz: '🎯 Nishon',        ru: '🎯 Дартс',        en: '🎯 Darts' },
+    bowling:  { uz: '🎳 Bouling',       ru: '🎳 Боулинг',      en: '🎳 Bowling' },
+  },
+  // ── Withdraw ──
+  withdraw_no_funds: (bal, mw, need) => ({
+    uz: `❌ <b>Yetarli mablag' yo'q!</b>\n\n💵 Sizda: <b>$${bal}</b>\n📌 Kerak: <b>$${mw}</b>\n🔺 Yana: <b>$${need}</b>`,
+    ru: `❌ <b>Недостаточно средств!</b>\n\n💵 У вас: <b>$${bal}</b>\n📌 Нужно: <b>$${mw}</b>\n🔺 Ещё: <b>$${need}</b>`,
+    en: `❌ <b>Insufficient funds!</b>\n\n💵 You have: <b>$${bal}</b>\n📌 Required: <b>$${mw}</b>\n🔺 Need more: <b>$${need}</b>`,
+  }),
+  withdraw_ok: (amt) => ({
+    uz: `✅ <b>So'rovingiz qabul qilindi!</b>\n\n💰 Summa: <b>$${amt}</b>\n⏳ 24 soat ichida ko'rib chiqiladi.`,
+    ru: `✅ <b>Запрос принят!</b>\n\n💰 Сумма: <b>$${amt}</b>\n⏳ Будет рассмотрен в течение 24 часов.`,
+    en: `✅ <b>Request accepted!</b>\n\n💰 Amount: <b>$${amt}</b>\n⏳ Will be reviewed within 24 hours.`,
+  }),
+  withdraw_admin_msg: (u, amt) =>
+    `💸 <b>Withdrawal Request</b>\n━━━━━━━━━━━━━━━━━━━━\n`
+    + `👤 ${u.first_name} ${u.last_name || ''}\n🆔 <code>${u.id}</code>\n`
+    + `📛 ${u.username ? '@' + u.username : '—'}\n💰 <b>$${amt}</b>`,
+  withdraw_approved: (amt) => ({
+    uz: `✅ <b>$${amt} tasdiqlandi!</b>\nTez orada o'tkaziladi.`,
+    ru: `✅ <b>$${amt} подтверждено!</b>\nСредства будут переведены в ближайшее время.`,
+    en: `✅ <b>$${amt} approved!</b>\nFunds will be transferred soon.`,
+  }),
+  withdraw_rejected: {
+    uz: '❌ <b>Pul yechish rad etildi.</b>\nMablag\' qaytarildi.',
+    ru: '❌ <b>Вывод отклонён.</b>\nСредства возвращены.',
+    en: '❌ <b>Withdrawal rejected.</b>\nFunds have been returned.',
+  },
+  withdraw_approve_btn: { uz: '✅ Tasdiqlash', ru: '✅ Подтвердить', en: '✅ Approve' },
+  withdraw_reject_btn:  { uz: '❌ Rad etish',  ru: '❌ Отклонить',   en: '❌ Reject' },
+  // ── Admin balance given ──
+  balance_given: (amt) => ({
+    uz: `💰 <b>Hisobingizga $${amt} qo'shildi!</b>`,
+    ru: `💰 <b>На ваш счёт зачислено $${amt}!</b>`,
+    en: `💰 <b>$${amt} has been added to your balance!</b>`,
+  }),
+  // ── Tasks site ──
+  task_done_msg: (title, reward, bal) => ({
+    uz: `✅ <b>Vazifa bajarildi!</b>\n\n📋 ${title}\n💰 +$${reward} qo'shildi!\n💵 Balans: <b>$${bal}</b>`,
+    ru: `✅ <b>Задание выполнено!</b>\n\n📋 ${title}\n💰 +$${reward} зачислено!\n💵 Баланс: <b>$${bal}</b>`,
+    en: `✅ <b>Task completed!</b>\n\n📋 ${title}\n💰 +$${reward} added!\n💵 Balance: <b>$${bal}</b>`,
+  }),
+  // ── Unknown command ──
+  unknown_cmd: {
+    uz: "❓ Noto'g'ri buyruq.\n\nMenyudan foydalaning 👇",
+    ru: '❓ Неизвестная команда.\n\nИспользуйте меню 👇',
+    en: '❓ Unknown command.\n\nUse the menu 👇',
+  },
+};
+
+// Helper
+function t(key, lang, ...args) {
+  const l = lang || 'uz';
+  const entry = T[key];
+  if (!entry) return key;
+  const fn = entry[l] || entry['uz'];
+  if (typeof fn === 'function') return fn(...args);
+  return fn;
+}
+
+function fmt(num) {
+  return Number(num).toFixed(2);
+}
+
+// ════════════════════════════════════════════════════════════════
 //  SETTINGS
 // ════════════════════════════════════════════════════════════════
 const settingsCache = {};
@@ -39,6 +305,24 @@ async function getSetting(k) {
 async function setSetting(k, v) {
   settingsCache[k] = String(v);
   await supabase.from('settings').upsert({ key: k, value: String(v) });
+}
+
+// ════════════════════════════════════════════════════════════════
+//  USER LANGUAGE
+// ════════════════════════════════════════════════════════════════
+const langCache = new Map();
+
+async function getUserLang(userId) {
+  if (langCache.has(userId)) return langCache.get(userId);
+  const { data } = await supabase.from('users').select('lang').eq('id', Number(userId)).single();
+  const lang = data?.lang || 'uz';
+  langCache.set(userId, lang);
+  return lang;
+}
+
+async function setUserLang(userId, lang) {
+  langCache.set(userId, lang);
+  await supabase.from('users').update({ lang }).eq('id', Number(userId));
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -75,14 +359,8 @@ async function getChannels() {
   const { data } = await supabase.from('channels').select('name');
   return (data || []).map(r => ({ name: r.name }));
 }
-
-async function addChannel(name) {
-  await supabase.from('channels').upsert({ name });
-}
-
-async function delChannel(name) {
-  await supabase.from('channels').delete().eq('name', name);
-}
+async function addChannel(name) { await supabase.from('channels').upsert({ name }); }
+async function delChannel(name) { await supabase.from('channels').delete().eq('name', name); }
 
 // ════════════════════════════════════════════════════════════════
 //  USERS
@@ -96,12 +374,14 @@ async function ensureUserRecord(id, from = null) {
   const existing = await getUser(id);
   const now = new Date().toISOString();
   if (!existing) {
+    const detectedLang = LANGS.includes(from?.language_code) ? from.language_code : 'uz';
     await supabase.from('users').insert({
       id: Number(id),
       username: from?.username || '',
       first_name: from?.first_name || '',
       last_name: from?.last_name || '',
       language_code: from?.language_code || '',
+      lang: detectedLang,
       is_bot: from?.is_bot || false,
       join_date: now,
       balance: 0,
@@ -112,6 +392,7 @@ async function ensureUserRecord(id, from = null) {
       last_updated: now,
       last_seen: now,
     });
+    langCache.set(Number(id), detectedLang);
     return true;
   }
   const updates = { last_seen: now };
@@ -132,7 +413,7 @@ async function addBalance(id, delta) {
   const user = await getUser(id);
   if (!user) return;
   await supabase.from('users').update({
-    balance: (user.balance || 0) + delta,
+    balance: Math.round(((user.balance || 0) + delta) * 100) / 100,
     last_updated: new Date().toISOString()
   }).eq('id', Number(id));
 }
@@ -167,11 +448,9 @@ async function getPending(newUserId) {
     .select('ref_id').eq('new_user_id', Number(newUserId)).single();
   return data?.ref_id || null;
 }
-
 async function setPending(newUserId, refId) {
   await supabase.from('pending_referrals').upsert({ new_user_id: Number(newUserId), ref_id: Number(refId) });
 }
-
 async function delPending(newUserId) {
   await supabase.from('pending_referrals').delete().eq('new_user_id', Number(newUserId));
 }
@@ -260,15 +539,14 @@ async function checkUserSub(telegram, userId) {
   return { ok: notSub.length === 0, notSub };
 }
 
-async function sendSubRequired(ctx, notSub) {
+async function sendSubRequired(ctx, notSub, lang = 'uz') {
   const btns = notSub.map(ch => {
     const slug = ch.startsWith('@') ? ch.slice(1) : ch;
-    return [Markup.button.url('📢 ' + ch + " ga a'zo bo'lish", 'https://t.me/' + slug)];
+    return [Markup.button.url(t('sub_join_btn', lang, ch), 'https://t.me/' + slug)];
   });
-  btns.push([Markup.button.callback("✅ A'zo bo'ldim — Tekshirish", 'check_sub')]);
+  btns.push([Markup.button.callback(t('sub_check_btn', lang), 'check_sub')]);
   await ctx.reply(
-    "🔒 <b>Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:</b>\n\n"
-    + notSub.map((c, i) => `${i + 1}. ${c}`).join('\n'),
+    t('sub_required_title', lang) + notSub.map((c, i) => `${i + 1}. ${c}`).join('\n'),
     { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard(btns).reply_markup }
   );
 }
@@ -276,14 +554,15 @@ async function sendSubRequired(ctx, notSub) {
 // ════════════════════════════════════════════════════════════════
 //  MENYULAR
 // ════════════════════════════════════════════════════════════════
-const mainMenu = (isAdm = false) => {
+const mainMenu = (lang = 'uz', isAdm = false) => {
+  const m = T.menu;
   const rows = [
-    ['🎰 Kazino', '👥 Referal ulashish'],
-    ['💰 Balans', '💸 Pul yechish'],
-    ['📋 Vazifalar', '📜 Qoidalar'],
-    ['📞 Support'],
+    [m.casino[lang], m.referral[lang]],
+    [m.balance[lang], m.withdraw[lang]],
+    [m.tasks[lang], m.rules[lang]],
+    [m.support[lang], m.lang[lang]],
   ];
-  if (isAdm) rows.push(['👑 Admin paneli']);
+  if (isAdm) rows.push([m.admin[lang]]);
   return Markup.keyboard(rows).resize();
 };
 
@@ -301,6 +580,32 @@ const adminMenu = () => Markup.keyboard([
 const bot = new Telegraf(API_TOKEN);
 const isAdmin = ctx => ctx.from?.id === ADMIN_ID;
 
+// ── Til tanlash ──
+bot.action(/^setlang_(uz|ru|en)$/, async ctx => {
+  await ctx.answerCbQuery();
+  const lang = ctx.match[1];
+  const userId = ctx.from.id;
+  await ensureUser(userId, null, ctx.from);
+  await setUserLang(userId, lang);
+  await ctx.deleteMessage().catch(() => {});
+  const rs = fmt(Number(await getSetting('referral_sum')));
+  const mw = fmt(Number(await getSetting('min_withdraw')));
+  await ctx.reply(
+    t('lang_set', lang) + '\n\n' + t('welcome', lang, ctx.from.first_name, rs, mw),
+    { parse_mode: 'HTML', reply_markup: mainMenu(lang, isAdmin(ctx)).reply_markup }
+  );
+});
+
+async function sendLangMenu(ctx) {
+  await ctx.reply(t('choose_lang', 'uz'), {
+    reply_markup: Markup.inlineKeyboard([
+      [Markup.button.callback("🇺🇿 O'zbekcha", 'setlang_uz')],
+      [Markup.button.callback('🇷🇺 Русский', 'setlang_ru')],
+      [Markup.button.callback('🇬🇧 English', 'setlang_en')],
+    ]).reply_markup
+  });
+}
+
 async function checkSubMiddleware(ctx, next) {
   if (!ctx.from) return next();
   if (isAdmin(ctx)) return next();
@@ -308,7 +613,8 @@ async function checkSubMiddleware(ctx, next) {
   if (ctx.message?.text?.startsWith('/start')) return next();
   const { ok, notSub } = await checkUserSub(ctx.telegram, ctx.from.id);
   if (ok) return next();
-  await sendSubRequired(ctx, notSub);
+  const lang = await getUserLang(ctx.from.id);
+  await sendSubRequired(ctx, notSub, lang);
 }
 bot.use(checkSubMiddleware);
 
@@ -316,6 +622,7 @@ bot.use(checkSubMiddleware);
 bot.action('check_sub', async ctx => {
   await ctx.answerCbQuery();
   const userId = ctx.from.id;
+  const lang = await getUserLang(userId);
   const { ok, notSub } = await checkUserSub(ctx.telegram, userId);
   if (ok) {
     await ensureUser(userId, null, ctx.from);
@@ -324,34 +631,33 @@ bot.action('check_sub', async ctx => {
       const rs = Number(await getSetting('referral_sum'));
       const refUser = await getUser(pending);
       await addBalance(pending, rs);
-      await supabase.from('users').update({
-        ref_count: (refUser?.ref_count || 0) + 1
-      }).eq('id', pending);
+      await supabase.from('users').update({ ref_count: (refUser?.ref_count || 0) + 1 }).eq('id', pending);
       await delPending(userId);
       await logUser(pending, 'REFERRAL_BONUS', 'new_user:' + userId, refUser?.balance || 0, (refUser?.balance || 0) + rs);
-      bot.telegram.sendMessage(pending, `🎉 <b>Yangi referal bonus!</b>\n👤 Yangi foydalanuvchi obunadan o'tdi\n💰 +${rs.toLocaleString()} so'm`, { parse_mode: 'HTML' }).catch(() => {});
+      const refLang = await getUserLang(pending);
+      bot.telegram.sendMessage(pending,
+        t('ref_bonus_sub_msg', refLang, userId, fmt(rs)),
+        { parse_mode: 'HTML' }
+      ).catch(() => {});
     }
     await ctx.deleteMessage().catch(() => {});
-    const rs = Number(await getSetting('referral_sum'));
-    const mw = Number(await getSetting('min_withdraw'));
+    const rs = fmt(Number(await getSetting('referral_sum')));
+    const mw = fmt(Number(await getSetting('min_withdraw')));
     await ctx.reply(
-      `✅ <b>Obunadan o'tdingiz!</b>\n\n👋 Xush kelibsiz, <b>${ctx.from.first_name}</b>!\n\n`
-      + `🤑 Har referal uchun <b>${rs.toLocaleString()} so'm</b>!\n`
-      + `🎰 Kazinoda omadingizni sinab ko'ring!\n`
-      + `💸 <b>${mw.toLocaleString()} so'm</b>dan boshlab yechish\n\nMenyudan tanlang 👇`,
-      { parse_mode: 'HTML', reply_markup: mainMenu(isAdmin(ctx)).reply_markup }
+      t('sub_ok', lang, ctx.from.first_name, rs, mw),
+      { parse_mode: 'HTML', reply_markup: mainMenu(lang, isAdmin(ctx)).reply_markup }
     );
   } else {
     const btns = notSub.map(ch => {
       const slug = ch.startsWith('@') ? ch.slice(1) : ch;
-      return [Markup.button.url('📢 ' + ch, 'https://t.me/' + slug)];
+      return [Markup.button.url(t('sub_join_btn', lang, ch), 'https://t.me/' + slug)];
     });
-    btns.push([Markup.button.callback("✅ A'zo bo'ldim — Tekshirish", 'check_sub')]);
+    btns.push([Markup.button.callback(t('sub_check_btn', lang), 'check_sub')]);
     await ctx.editMessageReplyMarkup(Markup.inlineKeyboard(btns).reply_markup).catch(async () => {
-      await ctx.reply("🔒 Hali ham a'zo emassiz:\n\n" + notSub.map((c, i) => `${i + 1}. ${c}`).join('\n'),
+      await ctx.reply(t('sub_required_title', lang) + notSub.map((c, i) => `${i + 1}. ${c}`).join('\n'),
         { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard(btns).reply_markup });
     });
-    try { await ctx.telegram.answerCbQuery(ctx.callbackQuery.id, "❌ Hali ham a'zo emassiz!", { show_alert: true }); } catch (e) {}
+    try { await ctx.telegram.answerCbQuery(ctx.callbackQuery.id, t('sub_not_yet', lang), { show_alert: true }); } catch (e) {}
   }
 });
 
@@ -363,30 +669,35 @@ bot.command('start', async ctx => {
     return ctx.reply('👑 <b>Admin panelga xush kelibsiz!</b>', { parse_mode: 'HTML', reply_markup: adminMenu().reply_markup });
   }
   const isNew = await ensureUser(userId, arg, ctx.from);
-  const { ok, notSub } = await checkUserSub(ctx.telegram, userId);
-  if (!ok && !isAdmin(ctx)) return sendSubRequired(ctx, notSub);
+  const lang = await getUserLang(userId);
+
+  // Yangi foydalanuvchiga til tanlash
   if (isNew) {
-    const pending = await getPending(userId);
-    if (pending) {
-      const rs = Number(await getSetting('referral_sum'));
-      const refUser = await getUser(pending);
-      await addBalance(pending, rs);
-      await supabase.from('users').update({
-        ref_count: (refUser?.ref_count || 0) + 1
-      }).eq('id', pending);
-      await delPending(userId);
-      bot.telegram.sendMessage(pending, `🎉 <b>Yangi referal bonus!</b>\n👤 ${ctx.from.first_name} qo'shildi\n💰 +${rs.toLocaleString()} so'm`, { parse_mode: 'HTML' }).catch(() => {});
-    }
+    return sendLangMenu(ctx);
   }
-  const rs = Number(await getSetting('referral_sum'));
-  const mw = Number(await getSetting('min_withdraw'));
+
+  const { ok, notSub } = await checkUserSub(ctx.telegram, userId);
+  if (!ok && !isAdmin(ctx)) return sendSubRequired(ctx, notSub, lang);
+
+  const pending = await getPending(userId);
+  if (pending) {
+    const rs = Number(await getSetting('referral_sum'));
+    const refUser = await getUser(pending);
+    await addBalance(pending, rs);
+    await supabase.from('users').update({ ref_count: (refUser?.ref_count || 0) + 1 }).eq('id', pending);
+    await delPending(userId);
+    const refLang = await getUserLang(pending);
+    bot.telegram.sendMessage(pending,
+      t('ref_bonus_msg', refLang, ctx.from.first_name, fmt(rs)),
+      { parse_mode: 'HTML' }
+    ).catch(() => {});
+  }
+
+  const rs = fmt(Number(await getSetting('referral_sum')));
+  const mw = fmt(Number(await getSetting('min_withdraw')));
   await ctx.reply(
-    `👋 <b>Assalomu alaykum, ${ctx.from.first_name}!</b>\n\n`
-    + `🤑 Har referal uchun <b>${rs.toLocaleString()} so'm</b>!\n`
-    + `🎰 Kazinoda omadingizni sinab ko'ring!\n`
-    + `📋 Vazifalar bajaring va bonus oling!\n`
-    + `💸 <b>${mw.toLocaleString()} so'm</b>dan boshlab yechish\n\nMenyudan tanlang 👇`,
-    { parse_mode: 'HTML', reply_markup: mainMenu(isAdmin(ctx)).reply_markup }
+    t('welcome', lang, ctx.from.first_name, rs, mw),
+    { parse_mode: 'HTML', reply_markup: mainMenu(lang, isAdmin(ctx)).reply_markup }
   );
 });
 
@@ -395,167 +706,183 @@ bot.command('admin', async ctx => {
   await ctx.reply('👑 <b>Admin panelga xush kelibsiz!</b>', { parse_mode: 'HTML', reply_markup: adminMenu().reply_markup });
 });
 
-// ── 💰 BALANS ──
-bot.hears('💰 Balans', async ctx => {
+// ── 🌐 TIL ──
+// Tilni har qanday til menyusidan ushlaymiz
+async function handleLangChange(ctx) {
   await ensureUser(ctx.from.id, null, ctx.from);
+  await sendLangMenu(ctx);
+}
+bot.hears([T.menu.lang.uz, T.menu.lang.ru, T.menu.lang.en], handleLangChange);
+
+// ── BALANCE ──
+async function handleBalance(ctx) {
+  await ensureUser(ctx.from.id, null, ctx.from);
+  const lang = await getUserLang(ctx.from.id);
   const u = await getUser(ctx.from.id);
-  const rs = Number(await getSetting('referral_sum'));
-  const mw = Number(await getSetting('min_withdraw'));
+  const rs = fmt(Number(await getSetting('referral_sum')));
+  const mw = fmt(Number(await getSetting('min_withdraw')));
   await ctx.reply(
-    `💰 <b>Hisobingiz</b>\n━━━━━━━━━━━━━━━━━━━━\n`
-    + `💵 Balans:        <b>${u.balance.toLocaleString()} so'm</b>\n`
-    + `👥 Referallar:    <b>${u.ref_count} ta</b>\n`
-    + `🎰 O'yinlar:      <b>${u.game_count} ta</b>\n`
-    + `✅ Yutgan:        <b>${u.wins} ta</b>\n`
-    + `❌ Yutqazgan:     <b>${u.losses} ta</b>\n`
+    `${t('balance_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n`
+    + `${t('bal_balance', lang)}        <b>$${fmt(u.balance)}</b>\n`
+    + `${t('bal_refs', lang)}    <b>${u.ref_count}</b>\n`
+    + `${t('bal_games', lang)}      <b>${u.game_count}</b>\n`
+    + `${t('bal_wins', lang)}        <b>${u.wins}</b>\n`
+    + `${t('bal_losses', lang)}     <b>${u.losses}</b>\n`
     + `━━━━━━━━━━━━━━━━━━━━\n`
-    + `📌 Minimal yechish: <b>${mw.toLocaleString()} so'm</b>\n`
-    + `💎 Har referal: <b>${rs.toLocaleString()} so'm</b>`,
+    + `${t('bal_minw', lang)} <b>$${mw}</b>\n`
+    + `${t('bal_per_ref', lang)} <b>$${rs}</b>`,
     { parse_mode: 'HTML' }
   );
-});
+}
+bot.hears([T.menu.balance.uz, T.menu.balance.ru, T.menu.balance.en], handleBalance);
 
-// ── 📜 QOIDALAR ──
-bot.hears('📜 Qoidalar', async ctx => {
+// ── RULES ──
+async function handleRules(ctx) {
+  const lang = await getUserLang(ctx.from.id);
   const rules = await getSetting('rules_text');
-  await ctx.reply(rules || '📜 Qoidalar hali kiritilmagan.', { parse_mode: 'HTML' });
-});
+  await ctx.reply(rules || t('rules_empty', lang), { parse_mode: 'HTML' });
+}
+bot.hears([T.menu.rules.uz, T.menu.rules.ru, T.menu.rules.en], handleRules);
 
-// ── 📞 SUPPORT ──
-bot.hears('📞 Support', async ctx => {
+// ── SUPPORT ──
+async function handleSupport(ctx) {
+  const lang = await getUserLang(ctx.from.id);
   const adminUser = await bot.telegram.getChat(ADMIN_ID).catch(() => null);
   const adminLink = adminUser?.username ? `https://t.me/${adminUser.username}` : `tg://user?id=${ADMIN_ID}`;
   await ctx.reply(
-    `📞 <b>Yordam va qo'llab-quvvatlash</b>\n━━━━━━━━━━━━━━━━━━━━\n\n`
-    + `❓ Savollaringiz yoki muammolaringiz bo'lsa,\nadmin bilan bog'laning.\n\n`
-    + `⏰ Ish vaqti: <b>09:00 — 23:00</b>`,
-    { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard([[Markup.button.url("👑 Admin bilan bog'lanish", adminLink)]]).reply_markup }
+    `${t('support_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n\n${t('support_body', lang)}`,
+    { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard([[Markup.button.url(t('support_btn', lang), adminLink)]]).reply_markup }
   );
-});
+}
+bot.hears([T.menu.support.uz, T.menu.support.ru, T.menu.support.en], handleSupport);
 
-// ── 👥 REFERAL ──
-bot.hears('👥 Referal ulashish', async ctx => {
+// ── REFERRAL ──
+async function handleReferral(ctx) {
   await ensureUser(ctx.from.id, null, ctx.from);
+  const lang = await getUserLang(ctx.from.id);
   const u = await getUser(ctx.from.id);
   const bi = await ctx.telegram.getMe();
   const link = `https://t.me/${bi.username}?start=${ctx.from.id}`;
-  const rs = Number(await getSetting('referral_sum'));
+  const rs = fmt(Number(await getSetting('referral_sum')));
   const chs = await getChannels();
   const isbotCh = chs.length ? chs[0].name : null;
-  const shareText = `🎰 Bot orqali pul ishlang! Har referal uchun ${rs.toLocaleString()} so'm!\n${link}`;
-  const btns = [[Markup.button.switchToChat("📤 Do'stlarga ulashish", shareText)]];
+  const shareTexts = {
+    uz: `🎰 Bot orqali pul ishlang! Har referal uchun $${rs}!\n${link}`,
+    ru: `🎰 Зарабатывайте через бота! $${rs} за каждого реферала!\n${link}`,
+    en: `🎰 Earn money via bot! $${rs} per referral!\n${link}`,
+  };
+  const btns = [[Markup.button.switchToChat(t('ref_share_btn', lang), shareTexts[lang] || shareTexts.uz)]];
   if (isbotCh) {
     const slug = isbotCh.startsWith('@') ? isbotCh.slice(1) : isbotCh;
     btns.push([Markup.button.url('📢 ' + isbotCh, 'https://t.me/' + slug)]);
   }
   await ctx.reply(
-    `👥 <b>Referal tizimi</b>\n━━━━━━━━━━━━━━━━━━━━\n`
-    + `💰 Har do'st uchun: <b>${rs.toLocaleString()} so'm</b>\n\n`
-    + `🔗 <b>Sizning havolangiz:</b>\n<code>${link}</code>\n\n`
-    + `📊 Jalb qilganlar: <b>${u.ref_count} ta</b>\n`
-    + `💵 Balans: <b>${u.balance.toLocaleString()} so'm</b>\n`
-    + `━━━━━━━━━━━━━━━━━━━━\n📤 Havolani do'stlaringizga ulashing!`,
+    `${t('ref_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n`
+    + `💰 ${t('ref_per_friend', lang)} <b>$${rs}</b>\n\n`
+    + `${t('ref_link', lang)}\n<code>${link}</code>\n\n`
+    + `📊 ${t('ref_invited', lang)} <b>${u.ref_count}</b>\n`
+    + `💵 ${t('ref_balance', lang)} <b>$${fmt(u.balance)}</b>\n`
+    + `━━━━━━━━━━━━━━━━━━━━\n${t('ref_share_hint', lang)}`,
     { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard(btns).reply_markup }
   );
-});
+}
+bot.hears([T.menu.referral.uz, T.menu.referral.ru, T.menu.referral.en], handleReferral);
 
-// ── 📋 VAZIFALAR ──
-bot.hears('📋 Vazifalar', async ctx => {
+// ── TASKS ──
+async function handleTasks(ctx) {
   await ensureUser(ctx.from.id, null, ctx.from);
+  const lang = await getUserLang(ctx.from.id);
   const siteBase = WEBHOOK_URL || `http://localhost:${PORT}`;
-  const tasksUrl = `${siteBase}/vazifalar?user_id=${ctx.from.id}`;
+  const tasksUrl = `${siteBase}/vazifalar?user_id=${ctx.from.id}&lang=${lang}`;
   await ctx.reply(
-    `📋 <b>Vazifalar</b>\n━━━━━━━━━━━━━━━━━━━━\n`
-    + `✅ Vazifalarni bajaring va bonus oling!\n\n`
-    + `🔗 Saytga o'ting va vazifalarni bajaring:`,
+    `${t('tasks_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n${t('tasks_body', lang)}`,
     {
       parse_mode: 'HTML',
-      reply_markup: Markup.inlineKeyboard([
-        [Markup.button.url('📋 Vazifalarni bajarish', tasksUrl)]
-      ]).reply_markup
+      reply_markup: Markup.inlineKeyboard([[Markup.button.url(t('tasks_btn', lang), tasksUrl)]]).reply_markup
     }
   );
-});
+}
+bot.hears([T.menu.tasks.uz, T.menu.tasks.ru, T.menu.tasks.en], handleTasks);
 
 // ════════════════════════════════════════════════════════════════
 //  🎰 KAZINO
 // ════════════════════════════════════════════════════════════════
 const activePlayers = new Set();
 const GAME_CONFIG = {
-  slot:     { emoji: '🎰', wait: 3500, label: 'Slot mashina' },
-  dice:     { emoji: '🎲', wait: 2000, label: "Zar o'yini" },
-  basket:   { emoji: '🏀', wait: 3000, label: 'Basketbol' },
-  football: { emoji: '⚽', wait: 3500, label: 'Futbol' },
-  darts:    { emoji: '🎯', wait: 3000, label: 'Nishon' },
-  bowling:  { emoji: '🎳', wait: 2500, label: 'Bouling' },
+  slot:     { emoji: '🎰', wait: 3500 },
+  dice:     { emoji: '🎲', wait: 2000 },
+  basket:   { emoji: '🏀', wait: 3000 },
+  football: { emoji: '⚽', wait: 3500 },
+  darts:    { emoji: '🎯', wait: 3000 },
+  bowling:  { emoji: '🎳', wait: 2500 },
 };
 
-bot.hears('🎰 Kazino', async ctx => {
+async function handleCasino(ctx) {
   await ensureUser(ctx.from.id, null, ctx.from);
+  const lang = await getUserLang(ctx.from.id);
   const u = await getUser(ctx.from.id);
-  const bet = Number(await getSetting('bet_amount'));
+  const bet = fmt(Number(await getSetting('bet_amount')));
+  const games = T.casino_games;
   await ctx.reply(
-    `🎰 <b>Kazino</b>\n━━━━━━━━━━━━━━━━━━━━\n`
-    + `💵 Balans: <b>${u.balance.toLocaleString()} so'm</b>\n`
-    + `🎲 Stavka: <b>${bet.toLocaleString()} so'm</b>\n\nO'yin turini tanlang:`,
+    `${t('casino_title', lang)}\n━━━━━━━━━━━━━━━━━━━━\n`
+    + `${t('casino_balance', lang)} <b>$${fmt(u.balance)}</b>\n`
+    + `${t('casino_bet', lang)} <b>$${bet}</b>\n\n${t('casino_choose', lang)}`,
     {
       parse_mode: 'HTML',
       reply_markup: Markup.inlineKeyboard([
-        [Markup.button.callback('🎰 Slot mashina', 'game_slot')],
-        [Markup.button.callback("🎲 Zar o'yini", 'game_dice')],
-        [Markup.button.callback('🏀 Basketbol', 'game_basket')],
-        [Markup.button.callback('⚽ Futbol', 'game_football')],
-        [Markup.button.callback('🎯 Nishon', 'game_darts')],
-        [Markup.button.callback('🎳 Bouling', 'game_bowling')],
+        [Markup.button.callback(games.slot[lang],     'game_slot')],
+        [Markup.button.callback(games.dice[lang],     'game_dice')],
+        [Markup.button.callback(games.basket[lang],   'game_basket')],
+        [Markup.button.callback(games.football[lang], 'game_football')],
+        [Markup.button.callback(games.darts[lang],    'game_darts')],
+        [Markup.button.callback(games.bowling[lang],  'game_bowling')],
       ]).reply_markup
     }
   );
-});
+}
+bot.hears([T.menu.casino.uz, T.menu.casino.ru, T.menu.casino.en], handleCasino);
 
 async function playGame(ctx, gameKey) {
   const userId = ctx.from.id;
   const cfg = GAME_CONFIG[gameKey];
   if (!cfg) return;
-  if (activePlayers.has(userId)) return ctx.answerCbQuery("⏳ O'yin hali tugamadi!", { show_alert: true });
+  const lang = await getUserLang(userId);
+  if (activePlayers.has(userId)) return ctx.answerCbQuery(t('casino_busy', lang), { show_alert: true });
   await ctx.answerCbQuery();
   await ensureUser(userId, null, ctx.from);
   const u = await getUser(userId);
-  const bet = Number(await getSetting('bet_amount'));
-  if (u.balance < bet) {
+  const betRaw = Number(await getSetting('bet_amount'));
+  const bet = fmt(betRaw);
+  if (u.balance < betRaw) {
     return ctx.reply(
-      `❌ <b>Mablag' yetarli emas!</b>\n\n🎲 Stavka: <b>${bet.toLocaleString()} so'm</b>\n`
-      + `💵 Sizda: <b>${u.balance.toLocaleString()} so'm</b>\n\n👥 Referal orqali to'ldiring!`,
+      t('casino_no_funds', lang, bet, fmt(u.balance))[lang] || t('casino_no_funds', lang, bet, fmt(u.balance)).uz,
       { parse_mode: 'HTML' }
     );
   }
   activePlayers.add(userId);
   try {
-    await ctx.reply(`🎮 <b>${cfg.label} boshlandi!</b> Omad! 🍀`, { parse_mode: 'HTML' });
+    const gameLabel = T.casino_games[gameKey][lang];
+    await ctx.reply(t('casino_started', lang)(gameLabel)[lang] || t('casino_started', lang)(gameLabel).uz, { parse_mode: 'HTML' });
     await ctx.telegram.sendDice(ctx.chat.id, { emoji: cfg.emoji });
     await new Promise(r => setTimeout(r, cfg.wait));
     const wc = Number(await getSetting('win_chance'));
     const won = Math.random() * 100 < wc;
-    await addBalance(userId, won ? bet : -bet);
+    await addBalance(userId, won ? betRaw : -betRaw);
     await incGame(userId, won);
     const nu = await getUser(userId);
     activePlayers.delete(userId);
-    await logUser(userId, won ? 'GAME_WIN' : 'GAME_LOSE', `game:${gameKey} bet:${bet}`, u.balance, nu.balance);
-    const retryBtn = Markup.inlineKeyboard([[Markup.button.callback("🔄 Yana o'ynash", 'game_' + gameKey)]]);
-    if (won) {
-      await ctx.reply(
-        `🎉 <b>YUTDINGIZ!</b> 🎉\n━━━━━━━━━━━━━━━━━━━━\n💰 Yutuq: <b>+${bet.toLocaleString()} so'm</b>\n💵 Balans: <b>${nu.balance.toLocaleString()} so'm</b>`,
-        { parse_mode: 'HTML', reply_markup: retryBtn.reply_markup }
-      );
-    } else {
-      await ctx.reply(
-        `😔 <b>Yutqazdingiz...</b>\n━━━━━━━━━━━━━━━━━━━━\n💸 -<b>${bet.toLocaleString()} so'm</b>\n💵 Balans: <b>${nu.balance.toLocaleString()} so'm</b>\n🍀 Yana urinib ko'ring!`,
-        { parse_mode: 'HTML', reply_markup: retryBtn.reply_markup }
-      );
-    }
+    await logUser(userId, won ? 'GAME_WIN' : 'GAME_LOSE', `game:${gameKey} bet:${betRaw}`, u.balance, nu.balance);
+    const retryLabel = t('casino_retry', lang);
+    const retryBtn = Markup.inlineKeyboard([[Markup.button.callback(retryLabel, 'game_' + gameKey)]]);
+    const msgObj = won
+      ? t('casino_win', lang, bet, fmt(nu.balance))
+      : t('casino_lose', lang, bet, fmt(nu.balance));
+    const msg = typeof msgObj === 'object' ? (msgObj[lang] || msgObj.uz) : msgObj;
+    await ctx.reply(msg, { parse_mode: 'HTML', reply_markup: retryBtn.reply_markup });
   } catch (err) {
     activePlayers.delete(userId);
     console.error('Kazino xato:', err);
-    ctx.reply('❌ Xato yuz berdi.').catch(() => {});
+    ctx.reply('❌ Error.').catch(() => {});
   }
 }
 
@@ -566,15 +893,18 @@ bot.action('game_football', ctx => playGame(ctx, 'football'));
 bot.action('game_darts',    ctx => playGame(ctx, 'darts'));
 bot.action('game_bowling',  ctx => playGame(ctx, 'bowling'));
 
-// ── 💸 PUL YECHISH ──
-bot.hears('💸 Pul yechish', async ctx => {
+// ── WITHDRAW ──
+async function handleWithdraw(ctx) {
   await ensureUser(ctx.from.id, null, ctx.from);
+  const lang = await getUserLang(ctx.from.id);
   const u = await getUser(ctx.from.id);
-  const mw = Number(await getSetting('min_withdraw'));
-  if (u.balance < mw) {
+  const mwRaw = Number(await getSetting('min_withdraw'));
+  const mw = fmt(mwRaw);
+  if (u.balance < mwRaw) {
+    const need = fmt(mwRaw - u.balance);
+    const msgObj = t('withdraw_no_funds', lang, fmt(u.balance), mw, need);
     return ctx.reply(
-      `❌ <b>Yetarli mablag' yo'q!</b>\n\n💵 Sizda: <b>${u.balance.toLocaleString()} so'm</b>\n`
-      + `📌 Kerak: <b>${mw.toLocaleString()} so'm</b>\n🔺 Yana: <b>${(mw - u.balance).toLocaleString()} so'm</b>`,
+      typeof msgObj === 'object' ? (msgObj[lang] || msgObj.uz) : msgObj,
       { parse_mode: 'HTML' }
     );
   }
@@ -582,52 +912,58 @@ bot.hears('💸 Pul yechish', async ctx => {
   await addWithdrawal(ctx.from.id, amount);
   await setBalance(ctx.from.id, 0);
   await logUser(ctx.from.id, 'WITHDRAW_REQUEST', `amount:${amount}`, amount, 0);
+  const okObj = t('withdraw_ok', lang, fmt(amount));
   await ctx.reply(
-    `✅ <b>So'rovingiz qabul qilindi!</b>\n\n💰 Summa: <b>${amount.toLocaleString()} so'm</b>\n⏳ 24 soat ichida ko'rib chiqiladi.`,
+    typeof okObj === 'object' ? (okObj[lang] || okObj.uz) : okObj,
     { parse_mode: 'HTML' }
   );
   await bot.telegram.sendMessage(
     ADMIN_ID,
-    `💸 <b>Pul yechish so'rovi</b>\n━━━━━━━━━━━━━━━━━━━━\n`
-    + `👤 ${ctx.from.first_name} ${ctx.from.last_name || ''}\n🆔 <code>${ctx.from.id}</code>\n`
-    + `📛 ${ctx.from.username ? '@' + ctx.from.username : "yo'q"}\n💰 <b>${amount.toLocaleString()} so'm</b>`,
+    t('withdraw_admin_msg', 'uz', ctx.from, fmt(amount)),
     {
       parse_mode: 'HTML',
       reply_markup: Markup.inlineKeyboard([[
-        Markup.button.callback('✅ Tasdiqlash', `aw_${ctx.from.id}_${amount}`),
-        Markup.button.callback('❌ Rad etish', `rw_${ctx.from.id}_${amount}`)
+        Markup.button.callback('✅ Approve', `aw_${ctx.from.id}_${amount}`),
+        Markup.button.callback('❌ Reject',  `rw_${ctx.from.id}_${amount}`)
       ]]).reply_markup
     }
   ).catch(() => {});
-});
+}
+bot.hears([T.menu.withdraw.uz, T.menu.withdraw.ru, T.menu.withdraw.en], handleWithdraw);
 
-bot.action(/^aw_(\d+)_(\d+)$/, async ctx => {
-  if (!isAdmin(ctx)) return ctx.answerCbQuery("❌ Ruxsat yo'q");
+bot.action(/^aw_(\d+)_([0-9.]+)$/, async ctx => {
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ No permission');
   const [, uid, amt] = ctx.match;
   await updateWithdrawal(Number(uid), Number(amt), 'approved');
   await logAdmin('WITHDRAW_APPROVE', Number(uid), `amount:${amt}`, 'pending', 'approved');
   await logUser(Number(uid), 'WITHDRAW_APPROVED', `amount:${amt}`, 0, 0);
-  bot.telegram.sendMessage(Number(uid), `✅ <b>${Number(amt).toLocaleString()} so'm tasdiqlandi!</b>\nTez orada o'tkaziladi.`, { parse_mode: 'HTML' }).catch(() => {});
+  const userLang = await getUserLang(Number(uid));
+  const msgObj = t('withdraw_approved', userLang, fmt(Number(amt)));
+  bot.telegram.sendMessage(Number(uid),
+    typeof msgObj === 'object' ? (msgObj[userLang] || msgObj.uz) : msgObj,
+    { parse_mode: 'HTML' }
+  ).catch(() => {});
   await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
-  await ctx.answerCbQuery('✅ Tasdiqlandi');
-  await ctx.reply(`✅ ${uid} → ${Number(amt).toLocaleString()} so'm tasdiqlandi.`);
+  await ctx.answerCbQuery('✅ Approved');
+  await ctx.reply(`✅ ${uid} → $${fmt(Number(amt))} approved.`);
 });
 
-bot.action(/^rw_(\d+)_(\d+)$/, async ctx => {
-  if (!isAdmin(ctx)) return ctx.answerCbQuery("❌ Ruxsat yo'q");
+bot.action(/^rw_(\d+)_([0-9.]+)$/, async ctx => {
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ No permission');
   const [, uid, amt] = ctx.match;
   await addBalance(Number(uid), Number(amt));
   await updateWithdrawal(Number(uid), Number(amt), 'rejected');
   await logAdmin('WITHDRAW_REJECT', Number(uid), `amount:${amt} returned`, 'pending', 'rejected');
   await logUser(Number(uid), 'WITHDRAW_REJECTED', `amount:${amt} returned`, 0, Number(amt));
-  bot.telegram.sendMessage(Number(uid), `❌ <b>Pul yechish rad etildi.</b>\nMablag' qaytarildi.`, { parse_mode: 'HTML' }).catch(() => {});
+  const userLang = await getUserLang(Number(uid));
+  bot.telegram.sendMessage(Number(uid), t('withdraw_rejected', userLang), { parse_mode: 'HTML' }).catch(() => {});
   await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
-  await ctx.answerCbQuery('❌ Rad etildi');
-  await ctx.reply(`❌ ${uid} ga ${Number(amt).toLocaleString()} so'm qaytarildi.`);
+  await ctx.answerCbQuery('❌ Rejected');
+  await ctx.reply(`❌ $${fmt(Number(amt))} returned to ${uid}.`);
 });
 
 // ════════════════════════════════════════════════════════════════
-//  👑 ADMIN PANEL
+//  👑 ADMIN PANEL (O'zbek tili saqlanadi)
 // ════════════════════════════════════════════════════════════════
 bot.hears('👑 Admin paneli', async ctx => {
   if (!isAdmin(ctx)) return;
@@ -645,17 +981,20 @@ bot.hears('📊 Statistika', async ctx => {
   const pendW  = ws.filter(w => w.status === 'pending').length;
   const chs    = await getChannels();
   const tasks  = await loadTasks();
+  const byLang = {};
+  userList.forEach(u => { const l = u.lang || 'uz'; byLang[l] = (byLang[l] || 0) + 1; });
   await ctx.reply(
     `📊 <b>BOT STATISTIKASI</b>\n━━━━━━━━━━━━━━━━━━━━\n`
     + `👥 Foydalanuvchilar: <b>${userList.length}</b>\n`
-    + `💰 Jami balans:      <b>${totalBal.toLocaleString()} so'm</b>\n`
+    + `   🇺🇿 UZ: ${byLang.uz||0} | 🇷🇺 RU: ${byLang.ru||0} | 🇬🇧 EN: ${byLang.en||0}\n`
+    + `💰 Jami balans:      <b>$${fmt(totalBal)}</b>\n`
     + `🔗 Jami referallar:  <b>${totalRef}</b>\n`
     + `🎰 Jami o'yinlar:    <b>${totalGame}</b>\n`
     + `📋 Vazifalar:        <b>${tasks.length} ta</b>\n`
     + `━━━━━━━━━━━━━━━━━━━━\n`
     + `💸 Yechish so'rovlari: <b>${ws.length}</b>\n`
     + `⏳ Kutilayotgan:      <b>${pendW}</b>\n`
-    + `💵 Jami yechilgan:   <b>${totalW.toLocaleString()} so'm</b>\n`
+    + `💵 Jami yechilgan:   <b>$${fmt(totalW)}</b>\n`
     + `━━━━━━━━━━━━━━━━━━━━\n`
     + `📢 Kanallar: <b>${chs.map(c => c.name).join(', ') || "Yo'q"}</b>`,
     { parse_mode: 'HTML' }
@@ -685,7 +1024,7 @@ bot.action('log_user', async ctx => {
   const text = rows.map(r =>
     `[${new Date(r.created_at).toLocaleString()}]\n👤 <code>${r.user_id}</code> | <b>${r.action}</b>\n`
     + (r.detail ? `📝 ${r.detail}\n` : '')
-    + (r.balance_before !== r.balance_after ? `💰 ${Number(r.balance_before).toLocaleString()} → ${Number(r.balance_after).toLocaleString()} so'm\n` : '')
+    + (r.balance_before !== r.balance_after ? `💰 $${fmt(r.balance_before)} → $${fmt(r.balance_after)}\n` : '')
   ).join('──────────────\n');
   await ctx.reply("👥 <b>So'nggi foydalanuvchi harakatlari</b>\n━━━━━━━━━━━━━━━━━━━━\n" + text, { parse_mode: 'HTML' });
 });
@@ -733,7 +1072,7 @@ bot.action('log_games', async ctx => {
   let text = `🎰 <b>O'yin statistikasi</b>\n━━━━━━━━━━━━━━━━━━━━\nJami: <b>${total}</b> | Yutdi: <b>${wins}</b> | Yutqazdi: <b>${losses}</b>\nYutish %: <b>${pct}%</b>\n━━━━━━━━━━━━━━━━━━━━\n`;
   Object.entries(byGame).forEach(([g, s]) => {
     const wp = s.total ? ((s.wins / s.total) * 100).toFixed(0) : 0;
-    text += `${g}: <b>${s.total}</b> o'yin | yutish <b>${wp}%</b>\n`;
+    text += `${g}: <b>${s.total}</b> | win <b>${wp}%</b>\n`;
   });
   await ctx.reply(text, { parse_mode: 'HTML' });
 });
@@ -745,7 +1084,7 @@ bot.action('log_withdraw', async ctx => {
   if (!rows.length) return ctx.reply("📭 Yechish tarixi yo'q");
   const statusIcon = { pending: '⏳', approved: '✅', rejected: '❌' };
   const text = rows.map(r =>
-    `[${new Date(r.created_at).toLocaleString()}]\n${statusIcon[r.status] || '❓'} <code>${r.user_id}</code> | <b>${Number(r.amount).toLocaleString()} so'm</b>\nHolat: <b>${r.status}</b>`
+    `[${new Date(r.created_at).toLocaleString()}]\n${statusIcon[r.status] || '❓'} <code>${r.user_id}</code> | <b>$${fmt(r.amount)}</b>\nStatus: <b>${r.status}</b>`
   ).join('\n──────────────\n');
   await ctx.reply('💸 <b>Yechish tarixi</b>\n━━━━━━━━━━━━━━━━━━━━\n' + text, { parse_mode: 'HTML' });
 });
@@ -828,10 +1167,10 @@ async function showSettings(ctx) {
   const wc = await getSetting('win_chance');
   await ctx.reply(
     `⚙️ <b>Sozlamalar</b>\n━━━━━━━━━━━━━━━━━━━━\n`
-    + `💰 Referal summasi: <b>${Number(rs).toLocaleString()} so'm</b>\n`
-    + `📌 Minimal yechish: <b>${Number(mw).toLocaleString()} so'm</b>\n`
-    + `🎲 Stavka:          <b>${Number(bt).toLocaleString()} so'm</b>\n`
-    + `🍀 Yutuq ehtimoli:  <b>${wc}%</b>`,
+    + `💰 Referal: <b>$${fmt(Number(rs))}</b>\n`
+    + `📌 Min yechish: <b>$${fmt(Number(mw))}</b>\n`
+    + `🎲 Stavka: <b>$${fmt(Number(bt))}</b>\n`
+    + `🍀 Yutuq ehtimoli: <b>${wc}%</b>`,
     {
       parse_mode: 'HTML',
       reply_markup: Markup.inlineKeyboard([
@@ -848,7 +1187,7 @@ bot.action(/^sset_(.+)$/, async ctx => {
   if (!isAdmin(ctx)) return ctx.answerCbQuery();
   await ctx.answerCbQuery();
   const key = ctx.match[1];
-  const labels = { referral_sum: "referal summa (so'm)", min_withdraw: "minimal yechish (so'm)", bet_amount: "stavka (so'm)", win_chance: 'yutuq ehtimoli (1-99%)' };
+  const labels = { referral_sum: 'referal summa ($)', min_withdraw: 'minimal yechish ($)', bet_amount: 'stavka ($)', win_chance: 'yutuq ehtimoli (1-99%)' };
   setState(ADMIN_ID, { action: 'setsetting', key });
   await ctx.reply(`✏️ Yangi ${labels[key] || key} ni kiriting:\n❌ Bekor: /cancel`);
 });
@@ -868,7 +1207,7 @@ bot.hears('💳 Balans berish', async ctx => {
 bot.hears('🗂 Vazifalar boshqaruv', async ctx => {
   if (!isAdmin(ctx)) return;
   const tasks = await loadTasks();
-  const list = tasks.map((t, i) => `${i + 1}. ${t.icon} ${t.title} — ${t.reward.toLocaleString()} so'm`).join('\n');
+  const list = tasks.map((t2, i) => `${i + 1}. ${t2.icon} ${t2.title} — $${fmt(t2.reward)}`).join('\n');
   await ctx.reply(
     `🗂 <b>Vazifalar boshqaruvi</b>\n━━━━━━━━━━━━━━━━━━━━\n${list || "Vazifalar yo'q"}\n`,
     {
@@ -893,7 +1232,7 @@ bot.action('task_del', async ctx => {
   await ctx.answerCbQuery();
   const tasks = await loadTasks();
   if (!tasks.length) return ctx.reply("Vazifalar yo'q.");
-  const btns = tasks.map(t => [Markup.button.callback(`🗑 ${t.title}`, `taskdel_${t.id}`)]);
+  const btns = tasks.map(t2 => [Markup.button.callback(`🗑 ${t2.title}`, `taskdel_${t2.id}`)]);
   await ctx.reply("O'chirish uchun vazifani tanlang:", { reply_markup: Markup.inlineKeyboard(btns).reply_markup });
 });
 
@@ -907,7 +1246,7 @@ bot.action(/^taskdel_(\d+)$/, async ctx => {
 bot.hears('🚪 Chiqish', async ctx => {
   if (!isAdmin(ctx)) return;
   clearState(ADMIN_ID);
-  await ctx.reply('👤 Asosiy menyu.', { reply_markup: mainMenu(isAdmin(ctx)).reply_markup });
+  await ctx.reply('👤 Asosiy menyu.', { reply_markup: mainMenu('uz', isAdmin(ctx)).reply_markup });
 });
 
 bot.command('cancel', async ctx => {
@@ -957,7 +1296,7 @@ bot.on('message', async (ctx, next) => {
 
     if (st.action === 'setsetting') {
       const key = st.key; clearState(ADMIN_ID);
-      const val = parseInt(text, 10);
+      const val = parseFloat(text);
       if (isNaN(val) || val <= 0) return ctx.reply('❌ Musbat son kiriting.');
       if (key === 'win_chance' && (val < 1 || val > 99)) return ctx.reply('❌ 1 dan 99 gacha bo\'lishi kerak.');
       const oldVal = await getSetting(key);
@@ -965,7 +1304,7 @@ bot.on('message', async (ctx, next) => {
       await logAdmin('SETTING_CHANGE', null, key, oldVal || '', String(val));
       const labels = { referral_sum: 'Referal summasi', min_withdraw: 'Minimal yechish', bet_amount: 'Stavka', win_chance: 'Yutuq ehtimoli' };
       return ctx.reply(
-        `✅ <b>${labels[key]}</b>: <b>${val.toLocaleString()}${key === 'win_chance' ? '%' : " so'm"}</b>`,
+        `✅ <b>${labels[key]}</b>: <b>${key === 'win_chance' ? val + '%' : '$' + fmt(val)}</b>`,
         { parse_mode: 'HTML', reply_markup: adminMenu().reply_markup }
       );
     }
@@ -978,7 +1317,8 @@ bot.on('message', async (ctx, next) => {
       if (!u) return ctx.reply('❌ Foydalanuvchi topilmadi.');
       return ctx.reply(
         `👤 <b>Foydalanuvchi</b>\n━━━━━━━━━━━━━━━━━━━━\n🆔 ID: <code>${u.id}</code>\n`
-        + `💰 Balans: <b>${u.balance.toLocaleString()} so'm</b>\n👥 Referallar: <b>${u.ref_count}</b>\n`
+        + `🌐 Til: <b>${u.lang || 'uz'}</b>\n`
+        + `💰 Balans: <b>$${fmt(u.balance)}</b>\n👥 Referallar: <b>${u.ref_count}</b>\n`
         + `🎰 O'yinlar: <b>${u.game_count}</b>\n✅ Yutdi: <b>${u.wins}</b> | ❌ Yutqazdi: <b>${u.losses}</b>`,
         { parse_mode: 'HTML' }
       );
@@ -990,27 +1330,32 @@ bot.on('message', async (ctx, next) => {
       const u = await getUser(uid);
       if (!u) return ctx.reply('❌ Foydalanuvchi topilmadi.');
       setState(ADMIN_ID, { action: 'givebal_amount', userId: uid });
-      return ctx.reply(`💳 ID: <code>${uid}</code>\nMiqdorni kiriting (so'm):\n❌ Bekor: /cancel`, { parse_mode: 'HTML' });
+      return ctx.reply(`💳 ID: <code>${uid}</code>\nMiqdorni kiriting ($):\n❌ Bekor: /cancel`, { parse_mode: 'HTML' });
     }
 
     if (st.action === 'givebal_amount') {
       const uid = st.userId; clearState(ADMIN_ID);
-      const amount = parseInt(text, 10);
+      const amount = parseFloat(text);
       if (isNaN(amount)) return ctx.reply("❌ Noto'g'ri miqdor.");
       const targetUser = await getUser(uid);
       await addBalance(uid, amount);
       await logAdmin('BALANCE_GIVE', uid, `amount:${amount}`, String(targetUser?.balance || 0), String((targetUser?.balance || 0) + amount));
       await logUser(uid, 'BALANCE_GIVEN', `by_admin amount:${amount}`, targetUser?.balance || 0, (targetUser?.balance || 0) + amount);
-      bot.telegram.sendMessage(uid, `💰 <b>Hisobingizga ${amount.toLocaleString()} so'm qo'shildi!</b>`, { parse_mode: 'HTML' }).catch(() => {});
-      return ctx.reply(`✅ <code>${uid}</code> ga <b>${amount.toLocaleString()} so'm</b> berildi!`, { parse_mode: 'HTML', reply_markup: adminMenu().reply_markup });
+      const userLang = await getUserLang(uid);
+      const msgObj = t('balance_given', userLang, fmt(amount));
+      bot.telegram.sendMessage(uid,
+        typeof msgObj === 'object' ? (msgObj[userLang] || msgObj.uz) : msgObj,
+        { parse_mode: 'HTML' }
+      ).catch(() => {});
+      return ctx.reply(`✅ <code>${uid}</code> ga <b>$${fmt(amount)}</b> berildi!`, { parse_mode: 'HTML', reply_markup: adminMenu().reply_markup });
     }
 
     if (st.action === 'task_add_title') {
       setState(ADMIN_ID, { action: 'task_add_reward', title: text });
-      return ctx.reply("💰 Vazifa mukofoti (so'm):\n❌ Bekor: /cancel");
+      return ctx.reply("💰 Vazifa mukofoti ($):\n❌ Bekor: /cancel");
     }
     if (st.action === 'task_add_reward') {
-      const reward = parseInt(text, 10);
+      const reward = parseFloat(text);
       if (isNaN(reward) || reward <= 0) return ctx.reply('❌ Musbat son kiriting.');
       setState(ADMIN_ID, { action: 'task_add_link', title: st.title, reward });
       return ctx.reply("🔗 Vazifa linki (yo'q bo'lsa '-' yozing):\n❌ Bekor: /cancel");
@@ -1020,15 +1365,18 @@ bot.on('message', async (ctx, next) => {
       const link = text.trim() === '-' ? '' : text.trim();
       await addTask({ title: st.title, description: st.title, reward: st.reward, type: 'custom', link, icon: '✅' });
       await logAdmin('TASK_ADD', null, st.title, '', String(st.reward));
-      return ctx.reply(`✅ <b>Vazifa qo'shildi!</b>\n📋 ${st.title}\n💰 ${st.reward.toLocaleString()} so'm`, { parse_mode: 'HTML', reply_markup: adminMenu().reply_markup });
+      return ctx.reply(`✅ <b>Vazifa qo'shildi!</b>\n📋 ${st.title}\n💰 $${fmt(st.reward)}`, { parse_mode: 'HTML', reply_markup: adminMenu().reply_markup });
     }
   }
   return next();
 });
 
 bot.on('message', async ctx => {
-  await ctx.reply("❓ Noto'g'ri buyruq.\n\nMenyudan foydalaning 👇",
-    { reply_markup: isAdmin(ctx) ? adminMenu().reply_markup : mainMenu(isAdmin(ctx)).reply_markup });
+  const lang = await getUserLang(ctx.from.id);
+  await ctx.reply(
+    t('unknown_cmd', lang),
+    { reply_markup: isAdmin(ctx) ? adminMenu().reply_markup : mainMenu(lang, isAdmin(ctx)).reply_markup }
+  );
 });
 
 // ════════════════════════════════════════════════════════════════
@@ -1044,9 +1392,9 @@ app.post('/telegram', (req, res) => bot.handleUpdate(req.body, res));
 app.get('/api/tasks', async (req, res) => {
   const userId = req.query.user_id;
   const tasks = await loadTasks();
-  const result = await Promise.all(tasks.map(async t => ({
-    ...t,
-    done: userId ? await isTaskDone(userId, t.id) : false
+  const result = await Promise.all(tasks.map(async t2 => ({
+    ...t2,
+    done: userId ? await isTaskDone(userId, t2.id) : false
   })));
   res.json({ tasks: result });
 });
@@ -1054,53 +1402,112 @@ app.get('/api/tasks', async (req, res) => {
 // ── API: vazifani bajarish ──
 app.post('/api/task/complete', async (req, res) => {
   const { user_id, task_id } = req.body;
-  if (!user_id || !task_id) return res.json({ ok: false, error: 'user_id va task_id kerak' });
-
+  if (!user_id || !task_id) return res.json({ ok: false, error: 'user_id and task_id required' });
   const user = await getUser(user_id);
-  if (!user) return res.json({ ok: false, error: "Foydalanuvchi topilmadi. Avval botni ishga tushiring." });
-
+  if (!user) return res.json({ ok: false, error: 'User not found. Start the bot first.' });
   const tasks = await loadTasks();
-  const task = tasks.find(t => t.id === Number(task_id));
-  if (!task) return res.json({ ok: false, error: "Vazifa topilmadi" });
-
-  if (await isTaskDone(user_id, task_id)) return res.json({ ok: false, error: "Vazifa allaqachon bajarilgan" });
-
+  const task = tasks.find(t2 => t2.id === Number(task_id));
+  if (!task) return res.json({ ok: false, error: 'Task not found' });
+  if (await isTaskDone(user_id, task_id)) return res.json({ ok: false, error: 'Task already completed' });
   await markTaskDone(user_id, task_id);
   await addBalance(user_id, task.reward);
   const newUser = await getUser(user_id);
   await logUser(Number(user_id), 'TASK_DONE', `task:${task_id} ${task.title}`, user.balance, newUser.balance);
-
-  bot.telegram.sendMessage(
-    user_id,
-    `✅ <b>Vazifa bajarildi!</b>\n\n📋 ${task.title}\n💰 +${task.reward.toLocaleString()} so'm qo'shildi!\n💵 Balans: <b>${newUser.balance.toLocaleString()} so'm</b>`,
+  const lang = await getUserLang(user_id);
+  const msgObj = t('task_done_msg', lang, task.title, fmt(task.reward), fmt(newUser.balance));
+  bot.telegram.sendMessage(user_id,
+    typeof msgObj === 'object' ? (msgObj[lang] || msgObj.uz) : msgObj,
     { parse_mode: 'HTML' }
   ).catch(() => {});
-
   res.json({ ok: true, reward: task.reward, balance: newUser.balance });
 });
 
-// ── API: foydalanuvchi ma'lumoti ──
+// ── API: foydalanuvchi ──
 app.get('/api/user', async (req, res) => {
   const userId = req.query.user_id;
   if (!userId) return res.json({ ok: false });
   const user = await getUser(userId);
-  if (!user) return res.json({ ok: false, error: "Foydalanuvchi topilmadi" });
-  res.json({ ok: true, user: { id: user.id, first_name: user.first_name, balance: user.balance } });
+  if (!user) return res.json({ ok: false, error: 'User not found' });
+  res.json({ ok: true, user: { id: user.id, first_name: user.first_name, balance: user.balance, lang: user.lang || 'uz' } });
 });
 
-// ── VAZIFALAR SAYTI ──
+// ── VAZIFALAR SAYTI (3 tilli) ──
 app.get('/vazifalar', (req, res) => {
   const userId = req.query.user_id || '';
+  const pageLang = ['uz', 'ru', 'en'].includes(req.query.lang) ? req.query.lang : 'uz';
+
+  const uiText = {
+    uz: {
+      title: '📋 Vazifalar',
+      loading: 'Yuklanmoqda...',
+      noTasks: "Hozircha vazifalar yo'q",
+      completed: 'Bajarildi',
+      totalTasks: (d, t) => `${d} / ${t} bajarildi`,
+      goBtnLabel: "O'tish",
+      claimBtn: 'Olish',
+      confirmBtn: '✅ Tasdiqlash',
+      doneBtn: '✅ Bajarildi',
+      loginBtn: '🔒 Login',
+      loginAlert: '❌ Botdan kirish kerak!',
+      currency: '$',
+      networkErr: '❌ Tarmoq xatosi',
+      activeSection: 'Faol vazifalar',
+      wait: sec => `⏳ ${sec}...`,
+      added: r => `✅ +$${r} qo'shildi!`,
+      errPrefix: '❌ ',
+    },
+    ru: {
+      title: '📋 Задания',
+      loading: 'Загрузка...',
+      noTasks: 'Заданий пока нет',
+      completed: 'Выполнено',
+      totalTasks: (d, t) => `${d} / ${t} выполнено`,
+      goBtnLabel: 'Перейти',
+      claimBtn: 'Получить',
+      confirmBtn: '✅ Подтвердить',
+      doneBtn: '✅ Выполнено',
+      loginBtn: '🔒 Войти',
+      loginAlert: '❌ Войдите через бота!',
+      currency: '$',
+      networkErr: '❌ Ошибка сети',
+      activeSection: 'Активные задания',
+      wait: sec => `⏳ ${sec}...`,
+      added: r => `✅ +$${r} зачислено!`,
+      errPrefix: '❌ ',
+    },
+    en: {
+      title: '📋 Tasks',
+      loading: 'Loading...',
+      noTasks: 'No tasks yet',
+      completed: 'Completed',
+      totalTasks: (d, t) => `${d} / ${t} completed`,
+      goBtnLabel: 'Go',
+      claimBtn: 'Claim',
+      confirmBtn: '✅ Confirm',
+      doneBtn: '✅ Done',
+      loginBtn: '🔒 Login',
+      loginAlert: '❌ Please start the bot first!',
+      currency: '$',
+      networkErr: '❌ Network error',
+      activeSection: 'Active Tasks',
+      wait: sec => `⏳ ${sec}...`,
+      added: r => `✅ +$${r} added!`,
+      errPrefix: '❌ ',
+    },
+  };
+
+  const ui = uiText[pageLang];
+
   res.send(`<!DOCTYPE html>
-<html lang="uz">
+<html lang="${pageLang}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>📋 Vazifalar</title>
+<title>${ui.title}</title>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#080c14;--surface:#0f1620;--card:#141e2e;--gold:#f0b429;--gold2:#fcd34d;--green:#10b981;--red:#ef4444;--blue:#3b82f6;--text:#e2e8f0;--muted:#64748b;--border:#1e293b}
+:root{--bg:#080c14;--surface:#0f1620;--card:#141e2e;--gold:#f0b429;--gold2:#fcd34d;--green:#10b981;--red:#ef4444;--text:#e2e8f0;--muted:#64748b;--border:#1e293b}
 body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;padding-bottom:40px}
 .header{background:linear-gradient(135deg,#0f1620 0%,#1a2540 100%);border-bottom:1px solid var(--border);padding:20px 16px;position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
 .header-top{display:flex;align-items:center;gap:12px;margin-bottom:16px}
@@ -1141,37 +1548,58 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 </head>
 <body>
 <div class="header">
-  <div class="header-top"><div class="logo">📋 VAZIFALAR</div></div>
+  <div class="header-top"><div class="logo">${ui.title}</div></div>
   <div class="user-card" id="userCard">
-    <div><div class="user-name" id="userName">Yuklanmoqda...</div></div>
-    <div class="user-bal" id="userBal">— <span>so'm</span></div>
+    <div><div class="user-name" id="userName">${ui.loading}</div></div>
+    <div class="user-bal" id="userBal">— <span>USD</span></div>
   </div>
   <div class="progress-wrap">
-    <div class="progress-info"><span id="progressText">0 / 0 bajarildi</span><span id="progressPct">0%</span></div>
+    <div class="progress-info"><span id="progressText">${ui.totalTasks(0, 0)}</span><span id="progressPct">0%</span></div>
     <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
   </div>
 </div>
-<div class="section-title">Faol vazifalar</div>
-<div class="task-list" id="taskList"><div class="loading"><div class="spin"></div><br>Yuklanmoqda...</div></div>
+<div class="section-title">${ui.activeSection}</div>
+<div class="task-list" id="taskList"><div class="loading"><div class="spin"></div><br>${ui.loading}</div></div>
 <div class="toast" id="toast"></div>
 <script>
 const USER_ID='${userId}';
+const UI=${JSON.stringify({
+  noTasks: ui.noTasks,
+  totalTasks: ui.totalTasks.toString(),
+  goBtnLabel: ui.goBtnLabel,
+  claimBtn: ui.claimBtn,
+  confirmBtn: ui.confirmBtn,
+  doneBtn: ui.doneBtn,
+  loginBtn: ui.loginBtn,
+  loginAlert: ui.loginAlert,
+  networkErr: ui.networkErr,
+  wait: ui.wait.toString(),
+  added: ui.added.toString(),
+  errPrefix: ui.errPrefix,
+})};
+function totalTasksStr(d,tot){return (new Function('d','t','return '+UI.totalTasks.replace(/=>\\s*/,'return ').replace(/\\(d, t\\)\\s*/,'')))(d,tot)||d+'/'+tot;}
+function waitStr(sec){return (new Function('sec','return '+UI.wait.replace(/=>\\s*/,'return ').replace(/\\(sec\\)\\s*/,'')))(sec)||'⏳';}
+function addedStr(r){return (new Function('r','return '+UI.added.replace(/=>\\s*/,'return ').replace(/\\(r\\)\\s*/,'')))(r)||'✅';}
 let tasks=[],userBalance=0;
-function showToast(msg,type='success'){const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type+' show';setTimeout(()=>{t.className='toast'},3000)}
-async function loadUser(){if(!USER_ID)return null;try{const r=await fetch('/api/user?user_id='+USER_ID);const d=await r.json();if(d.ok){document.getElementById('userName').textContent=d.user.first_name||'Foydalanuvchi';userBalance=d.user.balance;document.getElementById('userBal').innerHTML=userBalance.toLocaleString()+' <span>so\\'m</span>';return d.user;}}catch(e){}return null;}
+function fmt(n){return Number(n).toFixed(2);}
+function showToast(msg,type='success'){const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type+' show';setTimeout(()=>{t.className='toast'},3000);}
+async function loadUser(){if(!USER_ID)return null;try{const r=await fetch('/api/user?user_id='+USER_ID);const d=await r.json();if(d.ok){document.getElementById('userName').textContent=d.user.first_name||'User';userBalance=d.user.balance;document.getElementById('userBal').innerHTML='$'+fmt(userBalance)+' <span>USD</span>';return d.user;}}catch(e){}return null;}
 async function loadTasks(){try{const r=await fetch('/api/tasks?user_id='+USER_ID);const d=await r.json();return d.tasks||[];}catch(e){return[];}}
-function updateProgress(tasks){const done=tasks.filter(t=>t.done).length;const total=tasks.length;const pct=total?Math.round(done/total*100):0;document.getElementById('progressText').textContent=done+' / '+total+' bajarildi';document.getElementById('progressPct').textContent=pct+'%';document.getElementById('progressFill').style.width=pct+'%';}
-function renderTasks(tasks){const list=document.getElementById('taskList');if(!tasks.length){list.innerHTML='<div class="loading">📭 Hozircha vazifalar yo\\'q</div>';return;}list.innerHTML=tasks.map(t=>\`<div class="task-card \${t.done?'done':''}" id="task-\${t.id}"><div class="task-icon">\${t.icon||'✅'}</div><div class="task-body"><div class="task-title">\${t.title}</div><div class="task-desc">\${t.description||''}</div><div class="task-reward">+\${t.reward.toLocaleString()} so'm</div></div>\${t.done?'<button class="task-btn done-btn">✅ Bajarildi</button>':!USER_ID?'<button class="task-btn done-btn" onclick="noUserAlert()">🔒 Login</button>':t.link?\`<button class="task-btn go" onclick="goTask(\${t.id},'\${t.link}')">O\\'tish</button>\`:\`<button class="task-btn claim" onclick="claimTask(\${t.id})">Olish</button>\`}</div>\`).join('');}
-function goTask(taskId,link){window.open(link,'_blank');const card=document.getElementById('task-'+taskId);const btn=card?card.querySelector('button'):null;if(btn){btn.disabled=true;btn.textContent='⏳ 3...';let sec=3;const iv=setInterval(()=>{sec--;if(sec<=0){clearInterval(iv);btn.disabled=false;btn.className='task-btn claim';btn.textContent='✅ Tasdiqlash';btn.onclick=()=>claimTask(taskId);}else{btn.textContent='⏳ '+sec+'...';}},1000);}}
-async function claimTask(taskId){const card=document.getElementById('task-'+taskId);const btn=card?card.querySelector('button'):null;if(btn){btn.disabled=true;btn.textContent='⏳...';}try{const r=await fetch('/api/task/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:USER_ID,task_id:taskId})});const d=await r.json();if(d.ok){showToast('✅ +'+d.reward.toLocaleString()+' so\\'m qo\\'shildi!','success');userBalance=d.balance;document.getElementById('userBal').innerHTML=userBalance.toLocaleString()+' <span>so\\'m</span>';if(card){card.classList.add('done');if(btn){btn.className='task-btn done-btn';btn.textContent='✅ Bajarildi';btn.onclick=null;btn.disabled=false;}}tasks=tasks.map(t=>t.id===taskId?{...t,done:true}:t);updateProgress(tasks);}else{showToast('❌ '+(d.error||'Xato'),'error');if(btn){btn.disabled=false;btn.textContent='✅ Tasdiqlash';}}}catch(e){showToast('❌ Tarmoq xatosi','error');if(btn){btn.disabled=false;btn.textContent='Olish';}}}
-function noUserAlert(){showToast('❌ Botdan kirish kerak!','error');}
-async function init(){tasks=await loadTasks();updateProgress(tasks);renderTasks(tasks);if(USER_ID){const user=await loadUser();if(!user){document.getElementById('userName').textContent='⚠️ Botni ishga tushiring';}}else{document.getElementById('userName').textContent='👤 Mehmon';document.getElementById('userBal').innerHTML='— <span>so\\'m</span>';}}
+function updateProgress(tasks){const done=tasks.filter(t=>t.done).length;const total=tasks.length;const pct=total?Math.round(done/total*100):0;try{document.getElementById('progressText').textContent=totalTasksStr(done,total);}catch(e){document.getElementById('progressText').textContent=done+'/'+total;}document.getElementById('progressPct').textContent=pct+'%';document.getElementById('progressFill').style.width=pct+'%';}
+function renderTasks(tasks){const list=document.getElementById('taskList');if(!tasks.length){list.innerHTML='<div class="loading">📭 '+UI.noTasks+'</div>';return;}list.innerHTML=tasks.map(t=>\`<div class="task-card \${t.done?'done':''}" id="task-\${t.id}"><div class="task-icon">\${t.icon||'✅'}</div><div class="task-body"><div class="task-title">\${t.title}</div><div class="task-desc">\${t.description||''}</div><div class="task-reward">+$\${fmt(t.reward)}</div></div>\${t.done?'<button class="task-btn done-btn">'+UI.doneBtn+'</button>':!USER_ID?'<button class="task-btn done-btn" onclick="noUserAlert()">'+UI.loginBtn+'</button>':t.link?\`<button class="task-btn go" onclick="goTask(\${t.id},'\${t.link}')">'+UI.goBtnLabel+'</button>\`:\`<button class="task-btn claim" onclick="claimTask(\${t.id})">'+UI.claimBtn+'</button>\`}</div>\`).join('');}
+function goTask(taskId,link){window.open(link,'_blank');const card=document.getElementById('task-'+taskId);const btn=card?card.querySelector('button'):null;if(btn){btn.disabled=true;btn.textContent=waitStr(3);let sec=3;const iv=setInterval(()=>{sec--;if(sec<=0){clearInterval(iv);btn.disabled=false;btn.className='task-btn claim';btn.textContent=UI.confirmBtn;btn.onclick=()=>claimTask(taskId);}else{btn.textContent=waitStr(sec);}},1000);}}
+async function claimTask(taskId){const card=document.getElementById('task-'+taskId);const btn=card?card.querySelector('button'):null;if(btn){btn.disabled=true;btn.textContent='⏳...';}try{const r=await fetch('/api/task/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:USER_ID,task_id:taskId})});const d=await r.json();if(d.ok){try{showToast(addedStr(fmt(d.reward)),'success');}catch(e){showToast('✅ +$'+fmt(d.reward),'success');}userBalance=d.balance;document.getElementById('userBal').innerHTML='$'+fmt(userBalance)+' <span>USD</span>';if(card){card.classList.add('done');if(btn){btn.className='task-btn done-btn';btn.textContent=UI.doneBtn;btn.onclick=null;btn.disabled=false;}}tasks=tasks.map(t=>t.id===taskId?{...t,done:true}:t);updateProgress(tasks);}else{showToast(UI.errPrefix+(d.error||'Error'),'error');if(btn){btn.disabled=false;btn.textContent=UI.confirmBtn;}}}catch(e){showToast(UI.networkErr,'error');if(btn){btn.disabled=false;btn.textContent=UI.claimBtn;}}}
+function noUserAlert(){showToast(UI.loginAlert,'error');}
+async function init(){tasks=await loadTasks();updateProgress(tasks);renderTasks(tasks);if(USER_ID){const user=await loadUser();if(!user){document.getElementById('userName').textContent='⚠️ Start bot first';}}else{document.getElementById('userName').textContent='👤 Guest';document.getElementById('userBal').innerHTML='— <span>USD</span>';}}
 init();
 </script>
 </body>
 </html>`);
 });
 
+// ════════════════════════════════════════════════════════════════
+//  START
+// ════════════════════════════════════════════════════════════════
 app.listen(PORT, async () => {
   console.log(`✅ Server port ${PORT} da ishlamoqda`);
   await loadSettings();
@@ -1193,6 +1621,7 @@ app.listen(PORT, async () => {
 process.once('SIGINT',  () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 process.once('SIGUSR2', () => bot.stop('SIGUSR2'));
+
 
 
 
